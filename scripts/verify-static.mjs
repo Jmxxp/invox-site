@@ -28,14 +28,12 @@ check(config.basePath === basePath && config.assetPrefix === basePath, "Prefixos
 check(config.images.unoptimized === true, "Imagens independentes de servidor de otimização");
 const sourceConfig = await fs.readFile(path.join(root, "lib/site-config.ts"), "utf8");
 check(sourceConfig.includes(`siteBasePath = "${basePath}"`), "Helper público usa o mesmo prefixo do Next.js");
-check(sourceConfig.includes("LINKS-DOWNLOAD.json"), "Botões usam o arquivo de links da raiz");
-const downloadConfig = JSON.parse(await fs.readFile(path.join(root, "LINKS-DOWNLOAD.json"), "utf8"));
-check(downloadConfig !== null && typeof downloadConfig === "object" && !Array.isArray(downloadConfig)
-  && Object.keys(downloadConfig).sort().join(",") === "android,windows"
-  && ["windows", "android"].every(platform => typeof downloadConfig[platform] === "string"),
-"Arquivo de links contém somente os dois campos de texto Windows e Android");
+const pageSource = await fs.readFile(path.join(root, "app/page.tsx"), "utf8");
 const downloads = Object.fromEntries(["windows", "android"].map(platform => {
-  const value = downloadConfig[platform].trim();
+  const constant = `LINK_DOWNLOAD_${platform.toUpperCase()}`;
+  const declaration = pageSource.match(new RegExp(`const\\s+${constant}\\s*=\\s*("(?:\\\\.|[^"\\\\])*")\\s*;`));
+  check(Boolean(declaration), `Link de ${platform} editável diretamente em app/page.tsx`);
+  const value = JSON.parse(declaration[1]).trim();
   if (value) {
     const url = new URL(value);
     check(["https:", "http:"].includes(url.protocol), `Link de ${platform} usa HTTP ou HTTPS`);

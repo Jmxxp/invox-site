@@ -4,7 +4,7 @@ Site de apresentação do INVOX, um sandbox multiplayer de criação por voz par
 
 O projeto preserva o layout roxo, o robô e as três fileiras animadas com 72 itens do catálogo. As animações podem ser pausadas no rodapé e respeitam a preferência de movimento reduzido do navegador.
 
-**COLOCAR LINKS DOS BOTÕES:** edite [LINKS-DOWNLOAD.json](./LINKS-DOWNLOAD.json), na raiz. O atalho [EDITAR-LINKS.cmd](./EDITAR-LINKS.cmd) abre esse arquivo diretamente. `windows` controla o botão Windows; `android` controla o botão Android. [Como publicar as alterações](#links-de-download).
+**COLOCAR LINKS DOS BOTÕES:** edite as duas constantes destacadas no começo de [app/page.tsx](./app/page.tsx): `LINK_DOWNLOAD_WINDOWS` e `LINK_DOWNLOAD_ANDROID`. [Como publicar as alterações](#links-de-download).
 
 ## Desenvolvimento
 
@@ -45,18 +45,16 @@ O código-fonte e os artefatos de publicação ficam em branches separadas. `out
 
 ## Links de download
 
-Os dois links ficam em um único arquivo na raiz: **[LINKS-DOWNLOAD.json](./LINKS-DOWNLOAD.json)**. Abra **[EDITAR-LINKS.cmd](./EDITAR-LINKS.cmd)** com dois cliques para editar esse arquivo no Bloco de Notas.
+Os dois links ficam no próprio código da página, no começo de **[app/page.tsx](./app/page.tsx)**, em um bloco de comentários destacado.
 
 Cole os endereços públicos dos instaladores entre as aspas correspondentes:
 
-```json
-{
-  "windows": "",
-  "android": ""
-}
+```ts
+const LINK_DOWNLOAD_WINDOWS = "";
+const LINK_DOWNLOAD_ANDROID = "";
 ```
 
-Use links completos começando com `https://` ou `http://`. Um campo vazio mantém somente aquele botão desativado, com “Download em breve”. Quando preenchido, o botão passa a usar o endereço informado. `LINKS-DOWNLOAD.json` é o único local para alterar esses links; `lib/site-config.ts` lê o arquivo automaticamente. Os instaladores precisam estar hospedados em um endereço público; caminhos locais como `C:/...` não funcionam para os visitantes. Não inclua APKs ou instaladores neste repositório.
+Use links completos começando com `https://` ou `http://`. Uma constante vazia mantém somente aquele botão desativado, com “Download em breve”. Quando preenchida, o botão passa a usar o endereço informado. Os instaladores precisam estar hospedados em um endereço público; caminhos locais como `C:/...` não funcionam para os visitantes. Não inclua APKs ou instaladores neste repositório.
 
 Após salvar, gere e confira o site:
 
@@ -65,13 +63,12 @@ npm run build
 npm run verify
 ```
 
-Para atualizar o site público no GitHub Pages, execute `npm run deploy`, que já inclui as verificações e o build. Apenas salvar o JSON não altera a versão publicada.
+Para atualizar o site público no GitHub Pages, execute `npm run deploy`, que já inclui as verificações e o build. Apenas salvar o código não altera a versão publicada.
 
 ## Organização
 
 - `app/`: página, estilos e metadados.
-- `LINKS-DOWNLOAD.json`: links editáveis dos botões Windows e Android.
-- `EDITAR-LINKS.cmd`: atalho para abrir o arquivo de links no Bloco de Notas.
+- `app/page.tsx`: conteúdo da página e links editáveis dos botões Windows e Android no início do arquivo.
 - `lib/`: configuração pública e as três fileiras do catálogo.
 - `public/assets/`: imagens usadas pela página e pelos itens.
 - `public/fonts/`: Manrope e sua licença.
