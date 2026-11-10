@@ -9,5 +9,5 @@ export const LINK_DOWNLOAD_WINDOWS = "https://download943.mediafire.com/2y44v4un
 // BOTÃO ANDROID — link do instalador .APK
 export const LINK_DOWNLOAD_ANDROID = "https://download1587.mediafire.com/p8f444px0mygGwHQyYasyylNiG7gHykyxVsvFrkifQ70-2GSL5z6Hulnc27JHNcsJXL5iKSIGxVLrIV_xSqgoaNrZM-lx9_Fv_1Bd_lkE1w3ZUkQuGM2xbVINuTvPa8muf-rUTDQY2mqAQIMIeiQEezNw32nPPJrN0NjkpBHwmonslU/6ywqgaq7fo17d9b/INVOX-0.4.4.apk";
 
-// Deixe "" enquanto não tiver o link. Depois de editar, publique o site
-// novamente com: npm run deploy
+// Deixe "" enquanto não tiver o link. Depois de editar, faça commit e
+// sincronize a branch main: o GitHub publica o site automaticamente.

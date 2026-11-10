@@ -31,15 +31,15 @@ O build gera `out/` com HTML, CSS, JavaScript, fontes e imagens estáticos. Não
 
 Endereço configurado: **https://jmxxp.github.io/invox-site/**.
 
-O código-fonte pertence à branch `main` do repositório [Jmxxp/invox-site](https://github.com/Jmxxp/invox-site). Após enviar o código para essa branch, publique a exportação estática com uma conta autorizada no repositório:
+O código-fonte pertence à branch `main` do repositório [Jmxxp/invox-site](https://github.com/Jmxxp/invox-site). **Depois de editar, fazer commit e sincronizar essa branch, o site é gerado e publicado automaticamente.** Isso inclui as alterações dos links de download.
 
-```sh
-npm run deploy
-```
+O workflow [Publicar site do INVOX](./.github/workflows/publish-site.yml) usa Node.js 24, instala as versões fixadas, verifica o TypeScript, gera a exportação e confere os botões e recursos antes de publicar. Acompanhe o resultado na aba [Actions](https://github.com/Jmxxp/invox-site/actions/workflows/publish-site.yml). Aguarde a execução ficar verde antes de conferir o site. Também é possível iniciar a publicação por **Run workflow** nessa página.
 
-O passo `predeploy` verifica o TypeScript, executa o build e valida os arquivos estáticos; `gh-pages` envia o conteúdo de `out/`, incluindo `.nojekyll`, para a branch `gh-pages`. Nas configurações do GitHub Pages, selecione **Deploy from a branch**, branch **gh-pages**, pasta **/ (root)**. Este projeto não precisa de workflow próprio nem de credenciais dentro dos arquivos. A autenticação Git é feita pelo ambiente de quem publica.
+O GitHub Pages está configurado com a origem **GitHub Actions**. O workflow usa somente ações oficiais, fixadas por SHA, e o token temporário fornecido pelo GitHub. Não coloque tokens ou senhas no repositório.
 
-O código-fonte e os artefatos de publicação ficam em branches separadas. `out/` permanece fora de `main`; `.nojekyll` preserva o diretório `_next` na publicação.
+`out/` continua fora de `main`; somente o artefato estático validado é publicado. `.nojekyll` preserva o diretório `_next` na exportação. A branch `gh-pages` foi mantida como histórico e opção de recuperação, mas não é a origem ativa do site.
+
+O comando local `npm run deploy` continua disponível como alternativa para gerar e enviar `out/` à antiga branch `gh-pages`. **Com a origem atual em GitHub Actions, esse comando sozinho não atualiza o site público.** Para a publicação normal, sincronize `main` ou use **Run workflow**; não altere a origem do Pages para publicar uma edição comum.
 
 `basePath` e `assetPrefix` estão em `next.config.mjs`. O helper `assetPath`, em `lib/site-config.ts`, aplica o mesmo prefixo às imagens de `public/`. A fonte local Manrope é processada pelo `next/font/local`, com arquivos emitidos sob `_next/`.
 
@@ -63,7 +63,7 @@ npm run build
 npm run verify
 ```
 
-Para atualizar o site público no GitHub Pages, execute `npm run deploy`, que já inclui as verificações e o build. Apenas salvar o código não altera a versão publicada.
+Para atualizar o site público, **faça commit e sincronize a branch `main`**. O GitHub Actions faz o build, valida os links e publica automaticamente. Apenas salvar o arquivo no computador ainda não envia a alteração.
 
 ## Organização
 
