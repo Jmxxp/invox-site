@@ -1,17 +1,7 @@
 import { ArrowDownToLine, ArrowUpRight, Box, ChevronDown, FlaskConical, Hexagon, Layers3, Monitor, Puzzle, ShieldCheck, Smartphone, UsersRound, Zap } from "lucide-react";
 import { assetPath, downloadUrl, siteConfig } from "@/lib/site-config";
 import { catalogRows } from "@/lib/catalog-background";
-
-// ================================================================
-// LINKS DOS BOTÕES DE DOWNLOAD — EDITE SOMENTE ENTRE AS ASPAS
-// ================================================================
-// WINDOWS: cole abaixo o link público do instalador .EXE.
-const LINK_DOWNLOAD_WINDOWS = "";
-
-// ANDROID: cole abaixo o link público do instalador .APK.
-const LINK_DOWNLOAD_ANDROID = "";
-// Vazio = botão "Download em breve". Preenchido = botão de baixar.
-// ================================================================
+import { LINK_DOWNLOAD_WINDOWS, LINK_DOWNLOAD_ANDROID } from "@/LINKS-DOS-DOWNLOADS";
 
 const features = [
   { icon: Box, title: "Crie qualquer coisa", text: "Dê forma às suas ideias com voz." },

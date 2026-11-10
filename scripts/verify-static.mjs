@@ -29,10 +29,16 @@ check(config.images.unoptimized === true, "Imagens independentes de servidor de 
 const sourceConfig = await fs.readFile(path.join(root, "lib/site-config.ts"), "utf8");
 check(sourceConfig.includes(`siteBasePath = "${basePath}"`), "Helper público usa o mesmo prefixo do Next.js");
 const pageSource = await fs.readFile(path.join(root, "app/page.tsx"), "utf8");
+const downloadSource = await fs.readFile(path.join(root, "LINKS-DOS-DOWNLOADS.ts"), "utf8");
+const downloadImport = pageSource.match(/import\s*\{([^}]+)\}\s*from\s*["']@\/LINKS-DOS-DOWNLOADS["']/);
+check(Boolean(downloadImport)
+  && ["LINK_DOWNLOAD_WINDOWS", "LINK_DOWNLOAD_ANDROID"].every(name => new RegExp(`\\b${name}\\b`).test(downloadImport[1])),
+"Página importa os dois links do arquivo único na raiz");
 const downloads = Object.fromEntries(["windows", "android"].map(platform => {
   const constant = `LINK_DOWNLOAD_${platform.toUpperCase()}`;
-  const declaration = pageSource.match(new RegExp(`const\\s+${constant}\\s*=\\s*("(?:\\\\.|[^"\\\\])*")\\s*;`));
-  check(Boolean(declaration), `Link de ${platform} editável diretamente em app/page.tsx`);
+  const declaration = downloadSource.match(new RegExp(`export\\s+const\\s+${constant}\\s*=\\s*("(?:\\\\.|[^"\\\\])*")\\s*;`));
+  check(Boolean(declaration), `Link de ${platform} editável em LINKS-DOS-DOWNLOADS.ts`);
+  check(!new RegExp(`\\bconst\\s+${constant}\\b`).test(pageSource), `Link de ${platform} não tem outra declaração na página`);
   const value = JSON.parse(declaration[1]).trim();
   if (value) {
     const url = new URL(value);

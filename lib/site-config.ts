@@ -10,7 +10,7 @@ export function assetPath(path: string): string {
 
 export function downloadUrl(platform: string, value: unknown): string | null {
   if (typeof value !== "string") {
-    throw new Error(`app/page.tsx: o link ${platform} deve estar entre aspas ou vazio ("").`);
+    throw new Error(`LINKS-DOS-DOWNLOADS.ts: o link ${platform} deve estar entre aspas ou vazio ("").`);
   }
   const link = value.trim();
   if (!link) return null;
@@ -18,10 +18,10 @@ export function downloadUrl(platform: string, value: unknown): string | null {
   try {
     parsed = new URL(link);
   } catch {
-    throw new Error(`app/page.tsx: coloque um link público http:// ou https:// para ${platform}.`);
+    throw new Error(`LINKS-DOS-DOWNLOADS.ts: coloque um link público http:// ou https:// para ${platform}.`);
   }
   if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
-    throw new Error(`app/page.tsx: use http:// ou https:// para ${platform}.`);
+    throw new Error(`LINKS-DOS-DOWNLOADS.ts: use http:// ou https:// para ${platform}.`);
   }
   return link;
 }

@@ -4,7 +4,7 @@ Site de apresentação do INVOX, um sandbox multiplayer de criação por voz par
 
 O projeto preserva o layout roxo, o robô e as três fileiras animadas com 72 itens do catálogo. As animações podem ser pausadas no rodapé e respeitam a preferência de movimento reduzido do navegador.
 
-**COLOCAR LINKS DOS BOTÕES:** edite as duas constantes destacadas no começo de [app/page.tsx](./app/page.tsx): `LINK_DOWNLOAD_WINDOWS` e `LINK_DOWNLOAD_ANDROID`. [Como publicar as alterações](#links-de-download).
+**COLOCAR LINKS DOS BOTÕES:** abra **[LINKS-DOS-DOWNLOADS.ts](./LINKS-DOS-DOWNLOADS.ts)**, na raiz do site. Esse é o único arquivo para colocar os links de Windows e Android. [Como publicar as alterações](#links-de-download).
 
 ## Desenvolvimento
 
@@ -45,16 +45,16 @@ O código-fonte e os artefatos de publicação ficam em branches separadas. `out
 
 ## Links de download
 
-Os dois links ficam no próprio código da página, no começo de **[app/page.tsx](./app/page.tsx)**, em um bloco de comentários destacado.
+Os dois links ficam em um único arquivo de código, separado e destacado na raiz: **[LINKS-DOS-DOWNLOADS.ts](./LINKS-DOS-DOWNLOADS.ts)**.
 
 Cole os endereços públicos dos instaladores entre as aspas correspondentes:
 
 ```ts
-const LINK_DOWNLOAD_WINDOWS = "";
-const LINK_DOWNLOAD_ANDROID = "";
+export const LINK_DOWNLOAD_WINDOWS = "";
+export const LINK_DOWNLOAD_ANDROID = "";
 ```
 
-Use links completos começando com `https://` ou `http://`. Uma constante vazia mantém somente aquele botão desativado, com “Download em breve”. Quando preenchida, o botão passa a usar o endereço informado. Os instaladores precisam estar hospedados em um endereço público; caminhos locais como `C:/...` não funcionam para os visitantes. Não inclua APKs ou instaladores neste repositório.
+Use links completos começando com `https://` ou `http://`. Uma constante vazia mantém somente aquele botão desativado, com “Download em breve”. Quando preenchida, o botão passa a usar o endereço informado. A página importa essas duas constantes automaticamente; edite os links somente em `LINKS-DOS-DOWNLOADS.ts`. Os instaladores precisam estar hospedados em um endereço público; caminhos locais como `C:/...` não funcionam para os visitantes. Não inclua APKs ou instaladores neste repositório.
 
 Após salvar, gere e confira o site:
 
@@ -68,7 +68,8 @@ Para atualizar o site público no GitHub Pages, execute `npm run deploy`, que j�
 ## Organização
 
 - `app/`: página, estilos e metadados.
-- `app/page.tsx`: conteúdo da página e links editáveis dos botões Windows e Android no início do arquivo.
+- `LINKS-DOS-DOWNLOADS.ts`: único arquivo editável com os links dos botões Windows e Android.
+- `app/page.tsx`: conteúdo da página e botões ligados às constantes do arquivo de links.
 - `lib/`: configuração pública e as três fileiras do catálogo.
 - `public/assets/`: imagens usadas pela página e pelos itens.
 - `public/fonts/`: Manrope e sua licença.
