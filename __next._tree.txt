@@ -11,4 +11,4 @@
 :HL["/invox-site/assets/items/tank.png","image"]
 :HL["/invox-site/assets/items/thor_hammer.png","image"]
 :HL["/invox-site/assets/hero-robot.webp","image",{"fetchPriority":"high"}]
-0:{"tree":{"name":"","param":null,"prefetchHints":4176,"slots":{"children":{"name":"__PAGE__","param":null,"prefetchHints":4256,"slots":null}}},"staleTime":300,"buildId":"YtUbovPKS2VrHWL2MtRKP"}
+0:{"tree":{"name":"","param":null,"prefetchHints":4176,"slots":{"children":{"name":"__PAGE__","param":null,"prefetchHints":4256,"slots":null}}},"staleTime":300,"buildId":"i-fmdErZ3jry7EWMr8yN4"}
