@@ -28,7 +28,20 @@ check(config.basePath === basePath && config.assetPrefix === basePath, "Prefixos
 check(config.images.unoptimized === true, "Imagens independentes de servidor de otimização");
 const sourceConfig = await fs.readFile(path.join(root, "lib/site-config.ts"), "utf8");
 check(sourceConfig.includes(`siteBasePath = "${basePath}"`), "Helper público usa o mesmo prefixo do Next.js");
-check(/windows:\s*null/.test(sourceConfig) && /android:\s*null/.test(sourceConfig), "Downloads continuam desativados até receberem links oficiais");
+check(sourceConfig.includes("LINKS-DOWNLOAD.json"), "Botões usam o arquivo de links da raiz");
+const downloadConfig = JSON.parse(await fs.readFile(path.join(root, "LINKS-DOWNLOAD.json"), "utf8"));
+check(downloadConfig !== null && typeof downloadConfig === "object" && !Array.isArray(downloadConfig)
+  && Object.keys(downloadConfig).sort().join(",") === "android,windows"
+  && ["windows", "android"].every(platform => typeof downloadConfig[platform] === "string"),
+"Arquivo de links contém somente os dois campos de texto Windows e Android");
+const downloads = Object.fromEntries(["windows", "android"].map(platform => {
+  const value = downloadConfig[platform].trim();
+  if (value) {
+    const url = new URL(value);
+    check(["https:", "http:"].includes(url.protocol), `Link de ${platform} usa HTTP ou HTTPS`);
+  }
+  return [platform, value];
+}));
 const catalog = await fs.readFile(path.join(root, "lib/catalog-background.ts"), "utf8");
 const items = [...catalog.matchAll(/"id"\s*:\s*"([^"]+)"/g)].map(match => match[1]);
 check(items.length === 72 && new Set(items).size === 72, "Catálogo mantém os 72 itens únicos");
@@ -37,7 +50,25 @@ const html = await fs.readFile(path.join(output, "index.html"), "utf8");
 check(html.includes(`rel="canonical" href="${canonical}"`), "Canonical corresponde ao endereço público final");
 check((html.match(/class="catalog-card"/g) || []).length === 144, "Três fileiras mantêm a duplicação contínua dos 72 itens");
 check((html.match(/class="catalog-lane lane-/g) || []).length === 3, "As três fileiras animadas foram renderizadas");
-check(html.includes("pause-background") && html.includes("Download em breve"), "Pausa das animações e estados de download presentes");
+check(html.includes("pause-background"), "Pausa das animações presente");
+function escapeAttribute(value) {
+  return value.replaceAll("&", "&amp;").replaceAll('"', "&quot;")
+    .replaceAll("'", "&#x27;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+}
+for (const [platform, label] of [["windows", "Windows"], ["android", "Android"]]) {
+  const card = html.match(new RegExp(`<div id="${platform}">([\\s\\S]*?)</article>`))?.[1] ?? "";
+  const cardText = card.replace(/<!--[\s\S]*?-->/g, "").replace(/<[^>]*>/g, "");
+  check(card.length > 0, `Card de download ${label} foi renderizado`);
+  if (downloads[platform]) {
+    check(card.includes(`href="${escapeAttribute(downloads[platform])}"`)
+      && cardText.includes(`Baixar para ${label}`) && !/<button\b[^>]*\bdisabled\b/.test(card),
+    `Botão ${label} ativo usa exatamente o link configurado`);
+  } else {
+    check(/<button\b[^>]*\bdisabled\b/.test(card) && cardText.includes("Download em breve")
+      && !cardText.includes(`Baixar para ${label}`),
+    `Botão ${label} permanece desativado enquanto o link está vazio`);
+  }
+}
 check(!html.includes("chatgpt.site") && !html.includes("/_sites/"), "Nenhuma URL ou infraestrutura do hosting anterior no HTML");
 
 const referenced = new Set();
