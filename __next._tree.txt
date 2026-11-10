@@ -1,4 +1,4 @@
-:HL["/invox-site/_next/static/chunks/2lypcruu_y9_y.css","style"]
+:HL["/invox-site/_next/static/chunks/0bfa6ejn44voc.css","style"]
 :HL["/invox-site/_next/static/media/manrope.p.3mbsihvb8fg7z.woff2","font",{"crossOrigin":"","type":"font/woff2"}]
 :HL["/invox-site/assets/brand-wordmark.png","image"]
 :HL["/invox-site/assets/items/ufo.png","image"]
@@ -11,4 +11,4 @@
 :HL["/invox-site/assets/items/tank.png","image"]
 :HL["/invox-site/assets/items/thor_hammer.png","image"]
 :HL["/invox-site/assets/hero-robot.webp","image",{"fetchPriority":"high"}]
-0:{"tree":{"name":"","param":null,"prefetchHints":4176,"slots":{"children":{"name":"__PAGE__","param":null,"prefetchHints":4256,"slots":null}}},"staleTime":300,"buildId":"ja8HxQDKUqjk3Eoz1nWXX"}
+0:{"tree":{"name":"","param":null,"prefetchHints":4176,"slots":{"children":{"name":"__PAGE__","param":null,"prefetchHints":4256,"slots":null}}},"staleTime":300,"buildId":"YtUbovPKS2VrHWL2MtRKP"}
