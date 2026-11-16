@@ -2,8 +2,8 @@ const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/st
 const {webcrypto}=require('node:crypto');
 const source=fs.readFileSync(require('node:path').resolve(__dirname, '..', "supabase/functions/invox-api/index.ts"),'utf8').replace(/^import .*;\r?\n/,'').replace(/export /g,'');
 const context={crypto:webcrypto,Request,Response,Headers,URL,TextEncoder,TextDecoder,Uint8Array,btoa,atob,console};
-vm.runInNewContext(source+'\nglobalThis.exports={createHandler,passwordHash,passwordMatches};',context);
-const {createHandler,passwordHash,passwordMatches}=context.exports;
+vm.runInNewContext(source+'\nglobalThis.exports={createHandler,createUnavailableHandler,passwordHash,passwordMatches};',context);
+const {createHandler,createUnavailableHandler,passwordHash,passwordMatches}=context.exports;
 const ADMIN='11111111-1111-4111-8111-111111111111',FEEDBACK='22222222-2222-4222-8222-222222222222';
 function harness(){
  const db={invox_admins:[{email:'admin@example.test',username:'admin',user_id:ADMIN,enabled:true}],invox_site_settings:[{id:true,visibility:'public',download_password_hash:null,version:'1.1.0',release_notes:'',updated_at:'2026-11-16T00:00:00Z'}],invox_feedbacks:[],invox_installers:[{platform:'windows',path:'windows/1.1.0/test.exe',file_name:'INVOX-1.1.0.exe',size:1024,version:'1.1.0'}],invox_uploads:[]};
@@ -40,6 +40,15 @@ function harness(){
  return {db,controls,logs,handler,call};
 }
 module.exports=(async()=>{
+ const unavailableHandler=createUnavailableHandler();
+ for(const origin of ['http://127.0.0.1:5500','http://localhost:5500','https://jmxxp.github.io']){
+  const preflight=await unavailableHandler(new Request('https://example.test/invox-api',{method:'OPTIONS',headers:{Origin:origin,'Access-Control-Request-Method':'POST','Access-Control-Request-Headers':'content-type,apikey'}}));
+  assert.equal(preflight.status,204);assert.equal(preflight.headers.get('Access-Control-Allow-Origin'),origin);assert(preflight.headers.get('Access-Control-Allow-Headers').includes('apikey'));
+  const failed=await unavailableHandler(new Request('https://example.test/invox-api',{method:'POST',headers:{Origin:origin}}));
+  assert.equal(failed.status,503);assert.equal(failed.headers.get('Access-Control-Allow-Origin'),origin);assert.equal((await failed.json()).error.code,'offline');
+ }
+ const deniedFallback=await unavailableHandler(new Request('https://example.test/invox-api',{method:'OPTIONS',headers:{Origin:'https://evil.example.test'}}));
+ assert.equal(deniedFallback.status,403);assert.equal(deniedFallback.headers.get('Access-Control-Allow-Origin'),null);
  const h=harness();let response=await h.call('state');assert.equal(response.status,200);assert.equal(response.body.version,'1.1.0');assert.equal(response.body.platforms[0].available,true);assert(!response.text.includes('windows/1.1.0/'));assert(!response.text.includes('password_hash'));assert.equal(response.headers.get('Cache-Control'),'no-store');assert.equal(response.headers.get('Access-Control-Allow-Origin'),'https://jmxxp.github.io');
  response=await h.call('admin-state');assert.equal(response.status,401);assert.equal(h.logs.auth.length,0);
  response=await h.call('admin-state',{},true);assert.equal(response.status,200);assert.equal(response.body.admin.username,'admin');assert.equal(response.body.settings.uploadLimitBytes,52428800);assert.equal(response.body.installers[0].path,'windows/1.1.0/test.exe');
@@ -63,6 +72,9 @@ module.exports=(async()=>{
  h.controls.tableError='invox_site_settings';response=await h.call('state');assert.equal(response.status,503);assert(!response.text.includes('SQL SECRET'));h.controls.tableError=null;h.controls.throwQuery=true;response=await h.call('state');assert.equal(response.status,503);assert(!response.text.includes('SQL SECRET'));h.controls.throwQuery=false;
  response=await h.call('state',{},false,{headers:{Origin:'https://evil.example.test'}});assert.equal(response.status,403);assert.equal(response.headers.get('Access-Control-Allow-Origin'),null);response=await h.call('state',{},false,{method:'GET'});assert.equal(response.status,405);response=await h.call('state',{},false,{method:'OPTIONS',headers:{Origin:'http://127.0.0.1:4173'}});assert.equal(response.status,204);
  response=await h.call('state',{},false,{body:'x'.repeat(32769)});assert.equal(response.status,413);response=await h.call('state',{},false,{body:'{broken'});assert.equal(response.status,400);
+ const beforePreflightAuth=h.logs.auth.length;
+ response=await h.call('state',{},false,{method:'OPTIONS',headers:{Origin:'http://127.0.0.1:5500','Access-Control-Request-Method':'POST','Access-Control-Request-Headers':'content-type,apikey'}});
+ assert.equal(response.status,204);assert.equal(response.headers.get('Access-Control-Allow-Origin'),'http://127.0.0.1:5500');assert.equal(h.logs.auth.length,beforePreflightAuth);
  for(const [,args]of h.logs.rpc.filter(([name])=>name==='invox_take_rate_limit')){assert.match(args.p_key_hash,/^[a-f0-9]{64}$/);assert(!JSON.stringify(args).includes('192.0.2.1'));}
  console.log('PASS invox-api: anonymous/public/private downloads, PBKDF2, admin allowlist, username login, feedback, rate limits, signed uploads, immutable release validation, query fail-closed, no SQL leakage, CORS and body bounds.');
  return {result:'PASS',checks:['Public state omits paths/hash','Admin Auth + allowlist','Separate username/password Auth client','PBKDF2 private download gate','Rate limiter fail-closed','Signed installer upload','Ownership/size/manifest validation','Atomic publish RPC','Feedback validation','CORS and body limits','SQL and credential errors masked']};

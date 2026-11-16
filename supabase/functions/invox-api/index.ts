@@ -61,6 +61,19 @@ function responseHeaders(origin) {
   headers.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
   return headers;
 }
+export function createUnavailableHandler() {
+  return request => {
+    const origin = request.headers.get('origin') || '';
+    const headers = responseHeaders(origin);
+    if (!allowedOrigin(origin)) return new Response(JSON.stringify({ error: { code: 'forbidden', message: 'Origem não permitida.' } }), { status: 403, headers });
+    if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers });
+    if (request.method !== 'POST') {
+      headers.set('Allow', 'POST, OPTIONS');
+      return new Response(JSON.stringify({ error: { code: 'invalid_method', message: 'Método não permitido.' } }), { status: 405, headers });
+    }
+    return new Response(JSON.stringify({ error: { code: 'offline', message: 'Serviço temporariamente indisponível.' } }), { status: 503, headers });
+  };
+}
 async function readBody(request) {
   if (!request.headers.get('content-type')?.toLowerCase().startsWith('application/json')) throw fault('invalid_input', 'Envie uma solicitação JSON.', 415);
   if (Number(request.headers.get('content-length')) > MAX_BODY) throw fault('invalid_input', 'Solicitação muito grande.', 413);
@@ -279,7 +292,7 @@ if (typeof Deno !== 'undefined') {
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
   const options = { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } };
   if (!url || !serviceKey || !anonKey) {
-    Deno.serve(() => new Response(JSON.stringify({ error: { code: 'offline', message: 'Serviço temporariamente indisponível.' } }), { status: 503, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } }));
+    Deno.serve(createUnavailableHandler());
   } else {
     const service = createClient(url, serviceKey, options);
     Deno.serve(createHandler({ service, rateSecret: serviceKey, createAuthClient: () => createClient(url, anonKey, options) }));
