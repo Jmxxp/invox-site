@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#190b2d">
+  <meta name="description" content="INVOX Game: crie com a voz em um sandbox multiplayer. Invoque itens, combine mecânicas e jogue com até 12 jogadores. Sua voz. Suas regras. Windows e Android.">
+  <meta name="robots" content="index, follow, max-image-preview:large">
+  <meta name="application-name" content="INVOX">
+  <title>INVOX — Sua voz. Suas regras.</title>
+  <link rel="canonical" href="https://jmxxp.github.io/invox-site/">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="pt_BR">
+  <meta property="og:site_name" content="INVOX">
+  <meta property="og:title" content="INVOX — Sua voz. Suas regras.">
+  <meta property="og:description" content="INVOX Game: crie com a voz em um sandbox multiplayer. Invoque itens, combine mecânicas e jogue com até 12 jogadores. Sua voz. Suas regras. Windows e Android.">
+  <meta property="og:url" content="https://jmxxp.github.io/invox-site/">
+  <meta property="og:image" content="https://jmxxp.github.io/invox-site/assets/hero-scene-hd.png">
+  <meta property="og:image:width" content="1672">
+  <meta property="og:image:height" content="941">
+  <meta property="og:image:alt" content="Universo voxel do INVOX, com robô, planeta e blocos criados por voz.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="INVOX — Sua voz. Suas regras.">
+  <meta name="twitter:description" content="Crie com a voz no INVOX Game: sandbox multiplayer, comandos de voz e combinações para jogar com até 12 jogadores.">
+  <meta name="twitter:image" content="https://jmxxp.github.io/invox-site/assets/hero-scene-hd.png">
+  <meta name="twitter:image:alt" content="Robô e blocos flutuantes no universo criativo do INVOX.">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "@id": "https://jmxxp.github.io/invox-site/#website",
+        "url": "https://jmxxp.github.io/invox-site/",
+        "name": "INVOX",
+        "alternateName": ["INVOX Game", "INVOX jogo"],
+        "inLanguage": "pt-BR",
+        "about": { "@id": "https://jmxxp.github.io/invox-site/#game" }
+      },
+      {
+        "@type": "VideoGame",
+        "@id": "https://jmxxp.github.io/invox-site/#game",
+        "name": "INVOX",
+        "alternateName": "INVOX Game",
+        "url": "https://jmxxp.github.io/invox-site/",
+        "slogan": "Sua voz. Suas regras.",
+        "description": "Sandbox multiplayer de criação por voz: invoque elementos, combine mecânicas, explore mapas e crie com até 12 jogadores.",
+        "image": "https://jmxxp.github.io/invox-site/assets/hero-scene-hd.png",
+        "inLanguage": "pt-BR",
+        "genre": "Sandbox",
+        "gamePlatform": ["Windows", "Android"],
+        "playMode": ["https://schema.org/SinglePlayer", "https://schema.org/MultiPlayer"],
+        "numberOfPlayers": { "@type": "QuantitativeValue", "minValue": 1, "maxValue": 12 },
+        "keywords": ["INVOX", "INVOX Game", "crie com a voz", "jogo por comandos de voz", "sandbox multiplayer", "jogo de criação"]
+      }
+    ]
+  }
+  </script>
+  <link rel="icon" type="image/png" href="assets/brand-icon.png">
+  <link rel="preload" href="assets/fonts/montserrat-variable.ttf" as="font" type="font/ttf" crossorigin>
+  <link rel="preload" href="assets/hero-scene-hd.png" as="image" fetchpriority="high">
+  <link rel="stylesheet" href="assets/vendor/fontawesome/css/fontawesome.min.css">
+  <link rel="stylesheet" href="assets/vendor/fontawesome/css/solid.min.css">
+  <link rel="stylesheet" href="assets/vendor/fontawesome/css/brands.min.css">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="about.css">
+  <link rel="stylesheet" href="lobby.css">
+  <link rel="stylesheet" href="premium.css">
+  <link rel="stylesheet" href="feedback.css">
+  <script src="config.js" defer></script>
+  <script src="script.js" defer></script>
+  <script src="lobby.js" defer></script>
+  <script src="effects.js" defer></script>
+  <script src="feedback.js" defer></script>
+</head>
+<body class="fx-enabled">
+  <svg class="asset-filters" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false" width="0" height="0"><defs><filter id="logo-remove-black" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  1 1 1 0 0"/></filter></defs></svg>
+  <a class="skip-link" href="#conteudo">Pular para o conteúdo</a>
+  <div class="site-chrome" id="site-chrome">
+    <header class="site-header wrap">
+      <a class="brand wordmark" href="#inicio" aria-label="INVOX — início"><img src="assets/brand-wordmark.png" width="500" height="500" alt="INVOX"></a>
+      <button class="menu-toggle" data-menu-toggle aria-controls="main-nav" aria-expanded="false" aria-label="Abrir menu"><i class="fa-solid fa-bars" aria-hidden="true"></i></button>
+      <nav class="main-nav" id="main-nav" aria-label="Navegação principal">
+        <a class="nav-link is-active" href="#inicio" data-section="inicio" aria-current="page">Início</a>
+        <a class="nav-link" href="#recursos" data-section="recursos">Recursos</a>
+        <a class="nav-link" href="#download" data-section="download">Download</a>
+        <a class="nav-link" href="#sobre" data-section="sobre">Sobre</a>
+        <a class="nav-link nav-feedback" href="#feedback" data-section="feedback">Feedback <i class="fa-solid fa-comment-dots" aria-hidden="true"></i></a>
+      </nav>
+</header>
+  </div>
+  <div class="landing" id="inicio">
+    <div class="scene" aria-hidden="true"><img src="assets/hero-scene-hd.png" width="1672" height="941" alt="" fetchpriority="high" draggable="false"></div>
+    <main id="conteudo">
+      <section class="hero wrap" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <h1 class="hero-wordmark wordmark" id="hero-title"><img src="assets/brand-wordmark.png" width="500" height="500" alt="INVOX"></h1>
+          <div class="hero-description"><span class="accent-slash" aria-hidden="true">/</span><p>Um sandbox criativo com<br><strong>comandos de voz e combinações</strong><br>que transformam suas ideias em realidade.</p></div>
+        </div>
+      </section>
+      <section class="features wrap" id="recursos" aria-label="Recursos do INVOX">
+        <article class="feature"><i class="fa-solid fa-microphone-lines feature-icon mic" aria-hidden="true"></i><div><h2>Comandos de Voz</h2><p>Invoque itens, veículos,<br>personagens e muito mais.</p></div></article>
+        <article class="feature"><i class="fa-solid fa-infinity feature-icon infinity" aria-hidden="true"></i><div><h2>Combinações</h2><p>Junte comandos e crie<br>efeitos únicos e absurdos.</p></div></article>
+        <article class="feature"><i class="fa-solid fa-cube feature-icon cube" aria-hidden="true"></i><div><h2>Sandbox Livre</h2><p>Explore, construa e<br>experimente sem limites.</p></div></article>
+        <article class="feature"><i class="fa-solid fa-user-group feature-icon users" aria-hidden="true"></i><div><h2>Multiplayer</h2><p>Jogue com seus amigos<br>em tempo real.</p></div></article>
+        <article class="feature feature-live"><i class="fa-brands fa-tiktok feature-icon tiktok" aria-hidden="true"></i><div><h2>Integração<br><span class="live-title">TikTok LIVE <span class="live-badge">LIVE</span></span></h2><p>Interaja com sua live e leve<br>o jogo para o seu público.</p></div></article>
+      </section>
+      <section class="downloads wrap" id="download" aria-labelledby="download-title">
+        <div class="download-heading"><h2 id="download-title">BAIXE O INVOX</h2></div>
+        <div class="download-grid">
+          <a class="download-card download-windows" href="#" data-download="windows" aria-label="Baixar INVOX completo para Windows"><i class="fa-brands fa-windows platform-icon" aria-hidden="true"></i><span class="download-label"><strong>INVOX</strong><span>Windows (Completo)</span></span></a>
+          <a class="download-card download-macos" href="#" data-download="macos" aria-label="INVOX para macOS"><i class="fa-brands fa-apple platform-icon apple" aria-hidden="true"></i><span class="download-label"><strong>INVOX</strong><span>macOS</span></span></a>
+          <a class="download-card download-android" href="#" data-download="android" aria-label="Baixar INVOX para Android"><i class="fa-brands fa-android platform-icon android" aria-hidden="true"></i><span class="download-label"><strong>INVOX</strong><span>Android</span></span></a>
+        </div>
+      </section>
+<section class="about-game wrap" id="sobre" aria-labelledby="game-title">
+  <div class="game-intro">
+    <div>
+      <p class="game-kicker">CONHEÇA O INVOX</p>
+      <h2 id="game-title">SUA VOZ.<br><span>SUAS REGRAS.</span></h2>
+    </div>
+    <div class="game-intro-copy">
+      <p>INVOX é um <strong>sandbox multiplayer de criação por voz</strong>. Dê vida às suas ideias e transforme cada partida em algo completamente inesperado.</p>
+      <p>Invoque personagens, criaturas, veículos, armas e equipamentos. Combine mecânicas, desafie a física e descubra o que acontece quando a sua imaginação entra no jogo.</p>
+      <p class="game-manifesto">Sem roteiros. Sem limites para experimentar.<br><strong>Você decide o que acontece.</strong></p>
+    </div>
+  </div>
+
+<div class="game-topic-heading">
+  <p class="game-kicker">COMO FUNCIONA</p>
+  <h3>SUA MANEIRA DE CRIAR.</h3>
+</div>
+
+  <div class="game-pillars" aria-label="Sua maneira de jogar">
+    <article class="game-panel game-pillar"><i class="fa-solid fa-microphone-lines" aria-hidden="true"></i><h3>Invoque com sua voz</h3><p>Transforme palavras em ação e interaja com o mundo ao seu redor.</p></article>
+    <article class="game-panel game-pillar"><i class="fa-solid fa-cubes" aria-hidden="true"></i><h3>Combine e experimente</h3><p>Misture objetos, habilidades e mecânicas. A criatividade é sua principal ferramenta.</p></article>
+    <article class="game-panel game-pillar"><i class="fa-solid fa-globe" aria-hidden="true"></i><h3>Explore sem roteiros</h3><p>Construa, destrua e experimente livremente, sem depender de missões obrigatórias.</p></article>
+    <article class="game-panel game-pillar"><i class="fa-solid fa-user-group" aria-hidden="true"></i><h3>Compartilhe o caos</h3><p>Jogue sozinho ou reúna seus amigos em partidas com até <strong>12 jogadores</strong>.</p></article>
+  </div>
+
+  <section class="lobby-section" id="lobby" aria-label="Animação interativa do lobby do INVOX">
+    <div class="lobby-stage">
+      <canvas id="lobby-canvas" tabindex="0" aria-label="Blocos se montam e desmontam em casa, robô e nave. Mova o mouse para separar os blocos. Use as setas para mudar a forma e Espaço para pausar."></canvas>
+      <div class="lobby-canvas-fallback" aria-hidden="true"><i class="fa-solid fa-cubes"></i></div>
+    </div>
+  </section>
+
+  <div class="game-chapter">
+    <p class="game-kicker">01 / POSSIBILIDADES</p>
+    <h3 class="game-section-title">UM MUNDO PARA EXPERIMENTAR.</h3>
+    <div class="game-possibilities">
+      <article class="game-possibility"><i class="fa-solid fa-car" aria-hidden="true"></i><div><h4>Veículos pilotáveis</h4><p>Carros, motocicletas, aviões e outras formas de explorar suas próprias aventuras.</p></div></article>
+      <article class="game-possibility"><i class="fa-solid fa-bolt" aria-hidden="true"></i><div><h4>Física e destruição</h4><p>Experimente explosões, gravidade, estruturas e elementos dinâmicos do cenário.</p></div></article>
+      <article class="game-possibility"><i class="fa-solid fa-crosshairs" aria-hidden="true"></i><div><h4>Combate e competição</h4><p>Armas, equipamentos e habilidades para enfrentar adversários em batalhas imprevisíveis.</p></div></article>
+      <article class="game-possibility"><i class="fa-solid fa-map" aria-hidden="true"></i><div><h4>Diferentes mapas</h4><p>Explore ambientes variados e personalize suas experiências em diferentes cenários.</p></div></article>
+      <article class="game-possibility"><i class="fa-solid fa-shapes" aria-hidden="true"></i><div><h4>Centenas de elementos</h4><p>Um catálogo de personagens, criaturas, objetos, veículos e equipamentos para descobrir.</p></div></article>
+      <article class="game-possibility"><i class="fa-solid fa-puzzle-piece" aria-hidden="true"></i><div><h4>Sistema de addons</h4><p>Expanda e personalize o jogo com conteúdos adicionais compatíveis.</p></div></article>
+    </div>
+  </div>
+
+  <div class="game-chapter">
+    <p class="game-kicker">02 / MODOS DE JOGO</p>
+    <h3 class="game-section-title">ESCOLHA COMO JOGAR.</h3>
+    <div class="game-modes">
+      <article class="game-panel game-mode"><span class="game-mode-number">CRIAÇÃO LIVRE</span><h4>Sandbox</h4><p>Explore, crie, experimente e transforme o ambiente com liberdade, sem objetivos obrigatórios.</p></article>
+      <article class="game-panel game-mode"><span class="game-mode-number">COMPETITIVO</span><h4>Mata-mata</h4><p>Escolha seus equipamentos, enfrente outros jogadores e dispute partidas competitivas.</p></article>
+      <article class="game-panel game-mode"><span class="game-mode-number">JOGUE EM GRUPO</span><h4>Multiplayer</h4><p>Crie salas, convide seus amigos, escolha mapas e configure as regras disponíveis.</p></article>
+    </div>
+  </div>
+
+  <aside class="game-panel game-early" aria-labelledby="game-early-title">
+    <div class="game-release"><span class="game-release-label">INVOX</span><strong>1.0.0</strong><span class="game-release-status">ACESSO ANTECIPADO</span></div>
+    <div class="game-early-copy"><p class="game-kicker">03 / ACESSO ANTECIPADO</p><h3 id="game-early-title">O próximo passo começa com você.</h3><p>Os testes antecipados estão inicialmente disponíveis para jogadores selecionados. O INVOX segue em desenvolvimento ativo e pode apresentar bugs, instabilidades e funcionalidades em aprimoramento.</p><p><strong>Sua opinião importa.</strong> Compartilhe experiências, sugestões e descobertas. O feedback da comunidade contribui diretamente para as próximas atualizações.</p></div>
+  </aside>
+
+  <div class="game-outro"><h3 class="game-closing-title"><span class="game-closing-line">O próximo absurdo pode</span> <span class="game-closing-line">começar com uma ideia <span class="game-word-glow">sua.</span></span></h3><a class="game-cta" href="#download">BAIXE O INVOX <i class="fa-solid fa-arrow-down" aria-hidden="true"></i></a><span class="game-signature">INVOX — SUA VOZ. SUAS REGRAS.</span></div>
+</section>
+
+<section class="feedback-section wrap" id="feedback" aria-labelledby="feedback-title">
+  <div class="feedback-heading">
+    <p class="feedback-kicker">FAÇA PARTE DO INVOX</p>
+    <h2 id="feedback-title">Sua ideia muda <span>o jogo.</span></h2>
+    <p>Encontrou um bug ou teve uma ideia absurda? Conte para a gente e ajude a construir o próximo passo do INVOX.</p>
+  </div>
+  <form class="feedback-form" id="feedback-form">
+    <div class="feedback-fields">
+      <div class="feedback-field"><label for="feedback-name">Seu nome</label><input id="feedback-name" name="name" type="text" autocomplete="name" placeholder="Como podemos chamar você?" required minlength="2" maxlength="80"></div>
+      <div class="feedback-field"><label for="feedback-contact">Seu contato</label><input id="feedback-contact" name="contact" type="text" autocomplete="off" placeholder="E-mail ou WhatsApp" required minlength="3" maxlength="140"></div>
+    </div>
+    <div class="feedback-field"><label for="feedback-message">Seu feedback</label><textarea id="feedback-message" name="message" rows="5" placeholder="Descreva sua ideia, sugestão ou o que aconteceu no jogo..." required minlength="10" maxlength="2000" aria-describedby="feedback-count"></textarea><span class="feedback-count" id="feedback-count">0 / 2000</span></div>
+    <div class="feedback-actions"><p>O envio será disponibilizado em breve.</p><button class="feedback-submit" id="feedback-submit" type="submit" disabled>PREPARAR FEEDBACK <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></button></div>
+    <p class="feedback-status" id="feedback-status" role="status" aria-live="polite" tabindex="-1"></p>
+  </form>
+</section>
+
+    </main>
+  </div>
+<dialog class="info-dialog notice-dialog" id="notice-dialog" aria-labelledby="notice-title">
+    <button class="dialog-close" type="button" data-close-dialog aria-label="Fechar"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+    <span class="dialog-eyebrow">INVOX</span>
+    <h2 id="notice-title">Em breve</h2>
+    <p id="notice-copy"></p>
+    <button class="dialog-action" type="button" data-close-dialog>ENTENDI</button>
+  </dialog>
+  <noscript><p class="noscript-note">Ative o JavaScript para acessar os downloads e as informações do INVOX.</p></noscript>
+</body>
+</html>

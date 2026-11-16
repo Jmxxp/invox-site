@@ -1,0 +1,31 @@
+.feedback-section{--feedback-cut:polygon(16px 0,calc(100% - 16px) 0,100% 16px,100% calc(100% - 16px),calc(100% - 16px) 100%,16px 100%,0 calc(100% - 16px),0 16px);max-width:1080px;padding-top:clamp(55px,6vw,100px);padding-bottom:70px;border-top:1px solid #b67ed32b}
+.feedback-heading{max-width:740px;margin-bottom:30px}
+.feedback-kicker{margin:0 0 14px;color:#ca68f3;font-size:11px;line-height:1.5;font-weight:800;letter-spacing:.14em}
+.feedback-heading h2{margin:0 0 17px;font-size:clamp(29px,3.2vw,46px);line-height:1.15;letter-spacing:-.04em;font-weight:800;text-wrap:balance}
+.feedback-heading h2 span{color:#b51cff}
+.feedback-heading>p:last-child{max-width:650px;margin:0;font-size:14px;line-height:1.8;color:#c7b6d4}
+.feedback-form{position:relative;isolation:isolate;clip-path:var(--feedback-cut);padding:clamp(24px,3vw,40px);background:linear-gradient(135deg,#b551db8c,#60447666);font:inherit}
+.feedback-form::before{content:"";position:absolute;z-index:-1;inset:1px;clip-path:var(--feedback-cut);background:linear-gradient(125deg,#281334eb,#1b1029f5);pointer-events:none}
+.feedback-fields{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:24px}
+.feedback-field{min-width:0}
+.feedback-field label{display:block;margin:0 0 10px;color:#eee4f4;font-size:13px;line-height:1.5;font-weight:700}
+.feedback-field input,.feedback-field textarea{display:block;width:100%;border:1px solid #79548970;border-radius:0;background:#10091c8a;color:#f8f4fc;font:inherit;font-size:13px;line-height:1.65;padding:14px 16px;transition:border-color .2s,background .2s,box-shadow .2s}
+.feedback-field input{min-height:52px}
+.feedback-field textarea{min-height:165px;resize:vertical}
+.feedback-field input::placeholder,.feedback-field textarea::placeholder{color:#947ca5;opacity:1}
+.feedback-field input:hover,.feedback-field textarea:hover{border-color:#a76aca9c}
+.feedback-field input:focus,.feedback-field textarea:focus{outline:2px solid #bf50f26b;outline-offset:2px;border-color:#c779ed;background:#170d24;box-shadow:0 0 18px #9700d316}
+.feedback-count{display:block;margin-top:8px;text-align:right;color:#947ca5;font-size:10px;line-height:1.5;font-variant-numeric:tabular-nums}
+.feedback-actions{display:flex;align-items:center;justify-content:space-between;gap:22px;margin-top:23px}
+.feedback-actions>p{max-width:310px;margin:0;color:#b69fc6;font-size:11px;line-height:1.65}
+.feedback-submit{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;gap:25px;min-height:50px;padding:15px 24px;border:0;border-radius:0;clip-path:polygon(10px 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%,0 10px);background:linear-gradient(115deg,#ac0de4,#7210b3);color:#fff;font:inherit;font-size:11px;line-height:1.4;font-weight:800;letter-spacing:.045em;cursor:pointer;transition:background .2s,transform .2s}
+.feedback-submit i{font-size:13px}
+.feedback-submit:hover{background:linear-gradient(115deg,#c62bff,#9517da);transform:translateY(-2px)}
+.feedback-submit:focus-visible{clip-path:none;outline:2px solid #fff;outline-offset:5px}
+.feedback-submit:disabled{opacity:.5;cursor:default;transform:none}
+.feedback-status{margin:0;color:#dba1f7;font-size:12px;line-height:1.8}
+.feedback-status:not(:empty){margin-top:23px;padding-top:18px;border-top:1px solid #b76ac938}
+.feedback-status:focus{outline:none}
+@media(max-width:760px){.feedback-section{padding-top:48px;padding-bottom:50px}.feedback-heading{margin-bottom:25px}.feedback-kicker{font-size:10px}.feedback-heading h2{font-size:clamp(28px,7vw,38px)}.feedback-heading>p:last-child{font-size:13px}.feedback-form{padding:27px 23px}.feedback-fields{grid-template-columns:1fr;gap:21px;margin-bottom:21px}.feedback-actions{align-items:flex-start;flex-direction:column;gap:16px}.feedback-submit{width:100%;min-height:50px}.feedback-field label{font-size:12px}.feedback-field input,.feedback-field textarea{font-size:16px}.feedback-field textarea{min-height:160px}}
+@media(max-width:380px){.feedback-form{padding:24px 19px}.feedback-heading h2{font-size:27px}.feedback-submit{font-size:10px;gap:18px}}
+@media(prefers-reduced-motion:reduce){.feedback-submit,.feedback-field input,.feedback-field textarea{transition:none}.feedback-submit:hover{transform:none}}

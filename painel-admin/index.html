@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="theme-color" content="#13091f">
+  <title>INVOX — Painel administrativo</title>
+  <link rel="icon" href="assets/brand-icon.png">
+  <link rel="stylesheet" href="assets/vendor/fontawesome/css/fontawesome.min.css">
+  <link rel="stylesheet" href="assets/vendor/fontawesome/css/solid.min.css">
+  <link rel="stylesheet" href="assets/vendor/fontawesome/css/brands.min.css">
+  <link rel="stylesheet" href="styles.css">
+  <script defer src="admin.js"></script>
+  <script defer src="feedback.js"></script>
+  <script defer src="settings.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Ir para o conteúdo</a>
+  <svg class="asset-filters" xmlns="http://www.w3.org/2000/svg" width="0" height="0" aria-hidden="true" focusable="false"><defs><filter id="admin-logo-remove-black" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  1 1 1 0 0"/></filter></defs></svg>
+  <div class="admin-shell">
+    <div class="sidebar-backdrop" id="sidebar-backdrop" hidden></div>
+    <aside class="admin-sidebar" id="admin-sidebar" aria-label="Navegação administrativa">
+      <a class="admin-brand" href="#feedback" aria-label="INVOX — Painel administrativo"><span class="admin-brand-logo"><img src="assets/brand-wordmark.png" alt="INVOX"></span><span class="admin-brand-badge">ADMIN</span></a>
+      <p class="sidebar-label">GERENCIAR</p>
+      <nav class="admin-nav" aria-label="Áreas do painel">
+        <button class="nav-item is-active" data-panel="feedback" aria-current="page"><i class="fa-solid fa-comments" aria-hidden="true"></i><span>Feedbacks</span><span class="nav-badge" id="sidebar-new-count">3</span></button>
+        <button class="nav-item" data-panel="access"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i><span>Acesso ao site</span></button>
+        <button class="nav-item" data-panel="downloads"><i class="fa-solid fa-cloud-arrow-up" aria-hidden="true"></i><span>Versão e arquivos</span></button>
+      </nav>
+      <div class="sidebar-bottom"><div class="sidebar-note"><i class="fa-solid fa-flask" aria-hidden="true"></i><div><strong>Modo de prévia</strong><p>Alterações válidas apenas nesta sessão.</p></div></div><a class="sidebar-site" href="../site-oficial/index.html" target="_blank" rel="noopener">Abrir site oficial<i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i></a></div>
+    </aside>
+    <main class="admin-main" id="main-content">
+      <header class="admin-topbar"><button type="button" id="sidebar-toggle" class="mobile-menu" aria-controls="admin-sidebar" aria-expanded="false" aria-label="Abrir navegação"><i class="fa-solid fa-bars" aria-hidden="true"></i></button><div class="topbar-breadcrumb">Painel <span>/</span> <strong id="breadcrumb-current">Feedbacks</strong></div><span class="topbar-state"><span aria-hidden="true"></span>Prévia local</span></header>
+      <div class="admin-content">
+        <div class="page-heading"><div><p class="eyebrow">CENTRAL DE CONTROLE</p><h1 id="page-title">Feedbacks da comunidade</h1><p id="page-description">Organize as ideias que podem virar o próximo absurdo.</p></div><button type="button" id="reset-demo" class="button button-ghost"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i>Restaurar prévia</button></div>
+        <div class="preview-banner" role="note"><i class="fa-solid fa-circle-info" aria-hidden="true"></i><div><strong>Prévia da interface</strong><p>Os feedbacks são exemplos. Acesso, senha e instaladores são rascunhos desta sessão; nenhuma alteração é enviada ao site.</p></div></div>
+        <div class="stats-grid" aria-label="Resumo da prévia"><article class="stat-card"><i class="fa-solid fa-inbox" aria-hidden="true"></i><div><p class="stat-label">Novos feedbacks</p><strong id="stat-new">3</strong></div></article><article class="stat-card"><i class="fa-solid fa-circle-check" aria-hidden="true"></i><div><p class="stat-label">Respondidos</p><strong id="stat-answered">1</strong></div></article><article class="stat-card"><i class="fa-solid fa-cube" aria-hidden="true"></i><div><p class="stat-label">Versão em rascunho</p><strong id="summary-version">1.0.0</strong></div></article></div>
+        <section class="admin-panel" id="panel-feedback" aria-labelledby="feedback-panel-title">
+  <div class="panel-heading">
+    <div>
+      <h2 id="feedback-panel-title">Caixa de feedbacks</h2>
+      <p>Acompanhe as ideias e organize o que já foi respondido.</p>
+    </div>
+    <span class="panel-caption"><i class="fa-solid fa-arrow-down-wide-short" aria-hidden="true"></i> Mais recentes primeiro</span>
+  </div>
+  <div class="feedback-toolbar">
+    <div class="status-filters" role="group" aria-label="Filtrar feedbacks por situação">
+      <button type="button" class="filter-button is-active" data-filter="all" aria-pressed="true">Todos <span id="filter-all-count">4</span></button>
+      <button type="button" class="filter-button" data-filter="new" aria-pressed="false">Novos <span id="filter-new-count">3</span></button>
+      <button type="button" class="filter-button" data-filter="answered" aria-pressed="false">Respondidos <span id="filter-answered-count">1</span></button>
+    </div>
+    <label class="search-field" for="feedback-search">
+      <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+      <span class="sr-only">Buscar por nome, contato ou mensagem</span>
+      <input id="feedback-search" type="search" placeholder="Buscar feedback..." autocomplete="off">
+    </label>
+  </div>
+  <div class="feedback-workspace">
+    <div class="feedback-list" id="feedback-list" aria-label="Feedbacks de exemplo"></div>
+    <article class="feedback-detail" id="feedback-detail" aria-label="Detalhes do feedback"></article>
+  </div>
+</section>
+
+        <section id="panel-access" class="admin-panel" aria-labelledby="access-heading" hidden>
+  <div class="panel-heading"><h2 id="access-heading">Acesso ao site</h2><p>Prepare a visibilidade e a senha de acesso do site oficial.</p></div>
+  <form id="access-form" class="settings-layout">
+    <div class="settings-card">
+      <div class="settings-card-heading"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i><div><h3>Visibilidade</h3><p>Escolha como o site ficará disponível.</p></div></div>
+      <div class="visibility-options">
+        <label class="visibility-option is-selected"><input type="radio" name="site-visibility" value="public" checked><i class="fa-solid fa-globe" aria-hidden="true"></i><strong>Público</strong><small>Acesso livre para todos</small></label>
+        <label class="visibility-option"><input type="radio" name="site-visibility" value="private"><i class="fa-solid fa-lock" aria-hidden="true"></i><strong>Privado</strong><small>Acesso com senha</small></label>
+      </div>
+      <div id="private-password-fields" class="field-group" hidden>
+        <label for="site-password">Senha de acesso</label>
+        <div class="input-with-action"><input id="site-password" type="password" minlength="8" maxlength="128" autocomplete="new-password" placeholder="Pelo menos 8 caracteres" aria-describedby="password-hint"><button id="toggle-password" type="button" aria-label="Mostrar senha" aria-pressed="false"><i class="fa-solid fa-eye" aria-hidden="true"></i></button></div>
+        <p id="password-hint" class="field-hint">A senha fica somente nesta sessão. Ela só protegerá o site após a integração do servidor.</p>
+      </div>
+      <div class="settings-actions"><button class="button button-primary" type="submit"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i>Salvar rascunho</button><span class="session-note">Prévia local</span></div>
+    </div>
+    <aside class="settings-card access-preview" aria-live="polite">
+      <div class="preview-illustration"><i id="access-preview-icon" class="fa-solid fa-globe" aria-hidden="true"></i></div>
+      <span class="draft-label">CONFIGURAÇÃO EM RASCUNHO</span>
+      <h3 id="access-preview-status" class="preview-status">Rascunho público</h3>
+      <p id="access-preview-description">O site ficará disponível para qualquer visitante quando esta configuração for integrada.</p>
+      <p class="field-hint">Esta interface não altera o acesso do site publicado.</p>
+    </aside>
+  </form>
+</section>
+<section id="panel-downloads" class="admin-panel" aria-labelledby="downloads-heading" hidden>
+  <div class="panel-heading"><h2 id="downloads-heading">Versão e instaladores</h2><p>Organize a próxima versão do INVOX e seus arquivos por plataforma.</p></div>
+  <form id="release-form">
+    <div class="settings-card release-top">
+      <div class="settings-card-heading"><i class="fa-solid fa-code-branch" aria-hidden="true"></i><div><h3>Versão do jogo</h3><p>O número abaixo é um exemplo editável.</p></div></div>
+      <div class="field-group"><label for="release-version">Versão</label><input id="release-version" type="text" value="1.0.0" maxlength="64" required placeholder="Ex.: 1.0.0" spellcheck="false" aria-describedby="version-hint"><p id="version-hint" class="field-hint">Formato: 1.0.0 ou 1.0.0-beta.1</p></div>
+    </div>
+    <div class="upload-grid">
+      <article class="upload-card"><div class="upload-card-heading"><i class="fa-brands fa-windows" aria-hidden="true"></i><h3>Windows</h3><span class="platform-tag">PC</span></div><label class="dropzone" data-platform="windows" for="installer-windows"><input id="installer-windows" type="file" accept=".exe,.msi,.zip"><i class="fa-solid fa-cloud-arrow-up dropzone-icon" aria-hidden="true"></i><strong class="dropzone-title">Selecionar instalador</strong><span class="dropzone-hint">ou arraste o arquivo aqui</span><span class="dropzone-hint">EXE, MSI ou ZIP</span></label><div class="selected-file" data-platform="windows" hidden><i class="fa-solid fa-file-arrow-down" aria-hidden="true"></i><div><strong class="file-name"></strong><span class="file-size"></span></div><button class="remove-file" data-platform="windows" type="button" aria-label="Remover instalador Windows"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div><p class="file-error" data-platform="windows" role="alert"></p></article>
+      <article class="upload-card"><div class="upload-card-heading"><i class="fa-brands fa-apple" aria-hidden="true"></i><h3>macOS</h3><span class="platform-tag">MAC</span></div><label class="dropzone" data-platform="macos" for="installer-macos"><input id="installer-macos" type="file" accept=".dmg,.pkg,.zip"><i class="fa-solid fa-cloud-arrow-up dropzone-icon" aria-hidden="true"></i><strong class="dropzone-title">Selecionar instalador</strong><span class="dropzone-hint">ou arraste o arquivo aqui</span><span class="dropzone-hint">DMG, PKG ou ZIP</span></label><div class="selected-file" data-platform="macos" hidden><i class="fa-solid fa-file-arrow-down" aria-hidden="true"></i><div><strong class="file-name"></strong><span class="file-size"></span></div><button class="remove-file" data-platform="macos" type="button" aria-label="Remover instalador macOS"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div><p class="file-error" data-platform="macos" role="alert"></p></article>
+      <article class="upload-card"><div class="upload-card-heading"><i class="fa-brands fa-android" aria-hidden="true"></i><h3>Android</h3><span class="platform-tag">MOBILE</span></div><label class="dropzone" data-platform="android" for="installer-android"><input id="installer-android" type="file" accept=".apk"><i class="fa-solid fa-cloud-arrow-up dropzone-icon" aria-hidden="true"></i><strong class="dropzone-title">Selecionar instalador</strong><span class="dropzone-hint">ou arraste o arquivo aqui</span><span class="dropzone-hint">APK</span></label><div class="selected-file" data-platform="android" hidden><i class="fa-solid fa-file-arrow-down" aria-hidden="true"></i><div><strong class="file-name"></strong><span class="file-size"></span></div><button class="remove-file" data-platform="android" type="button" aria-label="Remover instalador Android"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div><p class="file-error" data-platform="android" role="alert"></p></article>
+    </div>
+    <div class="settings-card"><div class="field-group"><label for="release-notes">Novidades da versão</label><textarea id="release-notes" rows="5" maxlength="5000" placeholder="Descreva as novidades, melhorias e correções desta versão."></textarea><p class="field-hint">Este texto ficará como rascunho para a futura publicação.</p></div><div class="settings-actions"><button class="button button-primary" type="submit"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i>Salvar rascunho da versão</button></div><p class="session-note"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> Arquivos selecionados apenas nesta sessão. Nenhum envio é realizado.</p></div>
+  </form>
+</section>
+
+      </div>
+      <footer class="admin-footer"><span>INVOX <span aria-hidden="true">/</span> SUA VOZ. SUAS REGRAS.</span><span>Painel administrativo · Prévia</span></footer>
+    </main>
+  </div>
+  <div id="admin-toast" class="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+</body>
+</html>
