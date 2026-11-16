@@ -48,6 +48,7 @@
         "image": "https://jmxxp.github.io/invox-site/assets/hero-scene-hd.png",
         "inLanguage": "pt-BR",
         "genre": "Sandbox",
+        "softwareVersion": "1.1.0",
         "gamePlatform": ["Windows", "Android"],
         "playMode": ["https://schema.org/SinglePlayer", "https://schema.org/MultiPlayer"],
         "numberOfPlayers": { "@type": "QuantitativeValue", "minValue": 1, "maxValue": 12 },
@@ -67,7 +68,9 @@
   <link rel="stylesheet" href="lobby.css">
   <link rel="stylesheet" href="premium.css">
   <link rel="stylesheet" href="feedback.css">
+  <link rel="stylesheet" href="integration.css">
   <script src="config.js" defer></script>
+  <script src="shared/invox-client.js" defer></script>
   <script src="script.js" defer></script>
   <script src="lobby.js" defer></script>
   <script src="effects.js" defer></script>
@@ -112,6 +115,7 @@
           <a class="download-card download-macos" href="#" data-download="macos" aria-label="INVOX para macOS"><i class="fa-brands fa-apple platform-icon apple" aria-hidden="true"></i><span class="download-label"><strong>INVOX</strong><span>macOS</span></span></a>
           <a class="download-card download-android" href="#" data-download="android" aria-label="Baixar INVOX para Android"><i class="fa-brands fa-android platform-icon android" aria-hidden="true"></i><span class="download-label"><strong>INVOX</strong><span>Android</span></span></a>
         </div>
+        <div class="download-service"><p id="download-status" role="status" aria-live="polite">Consultando os instaladores...</p><button id="download-retry" type="button" hidden><i class="fa-solid fa-rotate-right" aria-hidden="true"></i>Tentar novamente</button></div>
       </section>
 <section class="about-game wrap" id="sobre" aria-labelledby="game-title">
   <div class="game-intro">
@@ -169,7 +173,7 @@
   </div>
 
   <aside class="game-panel game-early" aria-labelledby="game-early-title">
-    <div class="game-release"><span class="game-release-label">INVOX</span><strong>1.0.0</strong><span class="game-release-status">ACESSO ANTECIPADO</span></div>
+    <div class="game-release"><span class="game-release-label">INVOX</span><strong data-game-version>1.1.0</strong><span class="game-release-status">ACESSO ANTECIPADO</span></div>
     <div class="game-early-copy"><p class="game-kicker">03 / ACESSO ANTECIPADO</p><h3 id="game-early-title">O próximo passo começa com você.</h3><p>Os testes antecipados estão inicialmente disponíveis para jogadores selecionados. O INVOX segue em desenvolvimento ativo e pode apresentar bugs, instabilidades e funcionalidades em aprimoramento.</p><p><strong>Sua opinião importa.</strong> Compartilhe experiências, sugestões e descobertas. O feedback da comunidade contribui diretamente para as próximas atualizações.</p></div>
   </aside>
 
@@ -183,12 +187,13 @@
     <p>Encontrou um bug ou teve uma ideia absurda? Conte para a gente e ajude a construir o próximo passo do INVOX.</p>
   </div>
   <form class="feedback-form" id="feedback-form">
+    <div class="feedback-trap" aria-hidden="true"><label for="feedback-website">Seu site</label><input id="feedback-website" name="website" type="text" tabindex="-1" autocomplete="off"></div>
     <div class="feedback-fields">
       <div class="feedback-field"><label for="feedback-name">Seu nome</label><input id="feedback-name" name="name" type="text" autocomplete="name" placeholder="Como podemos chamar você?" required minlength="2" maxlength="80"></div>
       <div class="feedback-field"><label for="feedback-contact">Seu contato</label><input id="feedback-contact" name="contact" type="text" autocomplete="off" placeholder="E-mail ou WhatsApp" required minlength="3" maxlength="140"></div>
     </div>
     <div class="feedback-field"><label for="feedback-message">Seu feedback</label><textarea id="feedback-message" name="message" rows="5" placeholder="Descreva sua ideia, sugestão ou o que aconteceu no jogo..." required minlength="10" maxlength="2000" aria-describedby="feedback-count"></textarea><span class="feedback-count" id="feedback-count">0 / 2000</span></div>
-    <div class="feedback-actions"><p>O envio será disponibilizado em breve.</p><button class="feedback-submit" id="feedback-submit" type="submit" disabled>PREPARAR FEEDBACK <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></button></div>
+    <div class="feedback-actions"><p>Seu nome e contato serão usados para acompanhar seu feedback.</p><button class="feedback-submit" id="feedback-submit" type="submit" disabled>ENVIAR FEEDBACK <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></button></div>
     <p class="feedback-status" id="feedback-status" role="status" aria-live="polite" tabindex="-1"></p>
   </form>
 </section>
@@ -201,6 +206,18 @@
     <h2 id="notice-title">Em breve</h2>
     <p id="notice-copy"></p>
     <button class="dialog-action" type="button" data-close-dialog>ENTENDI</button>
+  </dialog>
+  <dialog class="info-dialog download-dialog" id="download-password-dialog" aria-labelledby="download-password-title" aria-describedby="download-password-description">
+    <button class="dialog-close" type="button" data-close-dialog aria-label="Fechar"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+    <span class="dialog-eyebrow">ACESSO AO INVOX</span>
+    <h2 id="download-password-title">Seu próximo mundo espera.</h2>
+    <p id="download-password-description">Este download está reservado. Informe a senha de acesso para baixar o INVOX.</p>
+    <form id="download-password-form">
+      <label for="download-password">Senha de acesso</label>
+      <input id="download-password" name="password" type="password" autocomplete="off" required maxlength="128" aria-describedby="download-password-status" autofocus>
+      <p id="download-password-status" class="download-password-status" role="status" aria-live="polite"></p>
+      <button class="dialog-action" id="download-password-submit" type="submit">LIBERAR DOWNLOAD <i class="fa-solid fa-arrow-down" aria-hidden="true"></i></button>
+    </form>
   </dialog>
   <noscript><p class="noscript-note">Ative o JavaScript para acessar os downloads e as informações do INVOX.</p></noscript>
 </body>

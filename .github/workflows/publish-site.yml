@@ -26,17 +26,14 @@ jobs:
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: "24"
-          cache: npm
       - name: Preparar GitHub Pages
         uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
-      - name: Instalar dependências fixadas
-        run: npm ci
-      - name: Conferir TypeScript
-        run: npm run typecheck
+      - name: Testar site e integração
+        run: node scripts/test-official.mjs
       - name: Gerar HTML e recursos
-        run: npm run build
+        run: node scripts/build-official.mjs
       - name: Conferir botões, links e recursos
-        run: npm run verify
+        run: node scripts/verify-official.mjs
       - name: Enviar o site validado
         uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
         with:

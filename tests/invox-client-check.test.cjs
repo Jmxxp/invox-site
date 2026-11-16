@@ -1,0 +1,139 @@
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const vm=require('node:vm');
+const source=fs.readFileSync('site-oficial/shared/invox-client.js','utf8');
+const project='https://wsfdwyghqqaerivyrbil.supabase.co';
+const sessionFixture={access_token:'access-token-fixture',refresh_token:'refresh-token-fixture'};
+const checks=[];
+function harness(){
+ const state={session:null,fetchCalls:[],sdkCalls:[],xhrCalls:[],setSessions:[],responses:[],progress:[],xhrMode:'ok',setSessionError:null};
+ const auth={
+  async getSession(){return {data:{session:state.session},error:null};},
+  async setSession(session){state.setSessions.push(session);if(state.setSessionError)return {error:state.setSessionError};state.session=session;return {error:null};}
+ };
+ class XHR{
+  constructor(){this.upload={};this.headers={};this.status=200;this.statusText='OK';this.responseText='{"Key":"uploaded"}';}
+  open(method,url){this.method=method;this.url=url;}
+  setRequestHeader(name,value){this.headers[name]=value;}
+  getResponseHeader(){return 'application/json';}
+  send(body){this.body=body;state.xhrCalls.push(this);queueMicrotask(()=>{
+   if(state.xhrMode==='network')return this.onerror();
+   if(state.xhrMode==='timeout')return this.ontimeout();
+   this.upload.onprogress({lengthComputable:true,loaded:51,total:100});
+   this.upload.onprogress({lengthComputable:true,loaded:100,total:100});
+   if(state.xhrMode==='http'){this.status=500;this.statusText='Error';this.responseText='{"error":"upload rejected"}';}
+   this.onload();
+  });}
+ }
+ const sdk={createClient(url,key,options){
+  state.sdkCalls.push({url,key,options});
+  if(!options.global)return {auth};
+  return {storage:{from(bucket){return {async uploadToSignedUrl(path,token,file,uploadOptions){
+   state.uploadArguments={bucket,path,token,file,uploadOptions};
+   try{
+    const response=await options.global.fetch(`${url}/storage/v1/object/upload/sign/${bucket}/${path}?token=${encodeURIComponent(token)}`,{method:'PUT',headers:{apikey:key,'Content-Type':uploadOptions.contentType},body:file});
+    return response.ok?{data:await response.json(),error:null}:{error:Error('HTTP upload failed')};
+   }catch(error){return {error};}
+  }}}}};
+ }};
+ const fetch=async(url,options)=>{
+  state.fetchCalls.push({url,options,body:JSON.parse(options.body)});
+  if(!state.responses.length)throw Error('Missing mock response');
+  const response=state.responses.shift();
+  if(response instanceof Error)throw response;
+  if(response.badJson)return {ok:true,status:200,json:async()=>{throw Error('not JSON');}};
+  return new Response(JSON.stringify(response.body),{status:response.status||200,headers:{'Content-Type':'application/json'}});
+ };
+ const timers=new Map();let timerId=0;
+ const window={supabase:sdk,sessionStorage:{}};
+ vm.runInNewContext(source,{window,fetch,Headers,Response,Request,URL,URLSearchParams,AbortController,File,XMLHttpRequest:XHR,crypto:require('node:crypto').webcrypto,setTimeout(fn){timers.set(++timerId,fn);return timerId;},clearTimeout(id){timers.delete(id);}});
+ return {state,api:window.InvoxBackend,timers};
+}
+const ok=body=>({body});
+const error=(code,status=400)=>({status,body:{error:{code,message:'Mensagem amigável de teste.'}}});
+const ticket=(path='windows/1.1.0/upload-id/INVOX.exe')=>({path,token:'signed-upload-fixture',signedUrl:`${project}/storage/v1/object/upload/sign/invox-installers/${path}?token=signed-upload-fixture`});
+(async()=>{
+ {
+  const {api,state,timers}=harness();state.session=sessionFixture;
+  state.responses.push(ok({visibility:'public',version:'1.1.0'}),ok({url:'signed-download'}),ok({id:'feedback-fixture'}));
+  await api.publicState();await api.download('windows','password-fixture');await api.sendFeedback({name:'Example',contact:'example@example.test',message:'A message for the fixture.'});
+  assert.deepEqual(state.fetchCalls.map(c=>c.body.action),['state','download','feedback']);
+  for(const {options} of state.fetchCalls){assert.equal(options.headers.Authorization,undefined);assert.equal(options.method,'POST');assert.equal(options.cache,'no-store');assert.equal(options.credentials,'omit');assert.equal(options.referrerPolicy,'no-referrer');}
+  assert.equal(timers.size,0);checks.push('Public actions never forward admin Bearer; no-store and omitted credentials');
+ }
+ {
+  const {api,state}=harness();
+  await assert.rejects(()=>api.adminState(),e=>e.code==='unauthorized'&&e.status===401);
+  assert.equal(state.fetchCalls.length,0);
+  state.session=sessionFixture;state.responses.push(ok({admin:{username:'fixture'}}));
+  await api.adminState();assert.equal(state.fetchCalls[0].options.headers.Authorization,'Bearer access-token-fixture');
+  checks.push('Admin actions require session and forward raw access token for server validation');
+ }
+ {
+  const {api,state}=harness();
+  state.responses.push(Error('network failed'));await assert.rejects(()=>api.publicState(),e=>e.code==='offline');
+  state.responses.push(new DOMException('Aborted','AbortError'));await assert.rejects(()=>api.publicState(),e=>e.code==='offline');
+  state.responses.push({badJson:true});await assert.rejects(()=>api.publicState(),e=>e.code==='offline');
+  state.responses.push(error('rate_limited',429));await assert.rejects(()=>api.download('android'),e=>e.code==='rate_limited'&&e.status===429);
+  checks.push('Network/abort/malformed JSON map to offline; server codes/status preserved');
+ }
+ {
+  const {api,state}=harness();
+  state.responses.push(error('invalid_credentials',401));await assert.rejects(()=>api.signIn('fixture','password-fixture'),e=>e.code==='invalid_credentials');
+  assert.equal(state.setSessions.length,0);
+  state.responses.push(ok({session:sessionFixture}),ok({admin:{username:'fixture'}}));
+  await api.signIn('fixture','password-fixture');assert.equal(state.setSessions.length,1);
+  assert.deepEqual(state.fetchCalls.map(c=>c.body.action),['login','login','admin-state']);
+  assert.equal(state.fetchCalls[1].options.headers.Authorization,undefined);assert.equal(state.fetchCalls[2].options.headers.Authorization,'Bearer access-token-fixture');
+  state.setSessionError=Error('session rejected');state.responses.push(ok({session:sessionFixture}));
+  await assert.rejects(()=>api.signIn('fixture','password-fixture'),e=>e.code==='unauthorized');
+  checks.push('Login creates session only after API success; failures never report success');
+ }
+ const file=new File([new Uint8Array(64)],'INVOX.exe',{type:'application/x-msdownload'});
+ {
+  const apk=new File([Uint8Array.from({length:64},(_,i)=>i)],'INVOX.apk',{type:'application/vnd.android.package-archive'});
+  const apkTicket=ticket('android/1.1.0/upload-id/INVOX.apk');
+  const {api,state}=harness();state.session=sessionFixture;state.responses.push(ok(apkTicket));
+  const result=await api.uploadInstaller({platform:'android',file:apk,version:'1.1.0',onProgress:value=>state.progress.push(value)});
+  assert.deepEqual(JSON.parse(JSON.stringify(result)),{platform:'android',path:apkTicket.path,fileName:apk.name,size:64});
+  assert.equal(state.uploadArguments.bucket,'invox-installers');assert.equal(state.uploadArguments.uploadOptions.upsert,false);
+  assert.equal(state.uploadArguments.uploadOptions.contentType,'application/octet-stream');assert.equal(state.xhrCalls[0].method,'PUT');
+  assert.equal(state.xhrCalls[0].headers.Authorization,undefined);
+  const payload=state.uploadArguments.file;
+  assert.notEqual(payload,apk);assert.equal(payload.type,'application/octet-stream');assert.equal(payload.size,apk.size);
+  assert.equal(state.xhrCalls[0].body,payload);
+  assert.deepEqual(new Uint8Array(await payload.arrayBuffer()),new Uint8Array(await apk.arrayBuffer()));
+  assert.deepEqual(state.progress,[0,51,99,100]);assert.equal(state.sdkCalls[1].options.auth.persistSession,false);
+  checks.push('Typed APK becomes equal-size octet-stream Blob with identical bytes; original filename/path preserved; PUT and progress confirmed');
+ }
+ {
+  const badTickets=[
+   {...ticket(),signedUrl:'https://outside.example.test/upload'},
+   {...ticket(),signedUrl:ticket().signedUrl.replace('invox-installers','other-bucket')},
+   {...ticket(),signedUrl:ticket().signedUrl.replace('signed-upload-fixture','different-token')},
+   {...ticket(),path:'android/1.1.0/file.apk'},
+   ticket('windows/../android/file.apk'),ticket('windows/1.1.0/%2e%2e/file.exe'),
+   {...ticket(),signedUrl:'not a URL'},{...ticket(),path:42}
+  ];
+  for(const value of badTickets){
+   const {api,state}=harness();state.session=sessionFixture;state.responses.push(ok(value));
+   await assert.rejects(()=>api.uploadInstaller({platform:'windows',file,version:'1.1.0'}),e=>e.code==='invalid_upload');
+   assert.equal(state.sdkCalls.length,1);assert.equal(state.xhrCalls.length,0);
+  }
+  checks.push('Upload ticket rejects wrong origin, bucket, token, platform and unsafe/malformed paths');
+ }
+ for(const mode of ['http','network','timeout']){
+  const {api,state}=harness();state.session=sessionFixture;state.responses.push(ok(ticket()));state.xhrMode=mode;
+  await assert.rejects(()=>api.uploadInstaller({platform:'windows',file,version:'1.1.0',onProgress:value=>state.progress.push(value)}),e=>e.code==='upload_failed');
+  assert(!state.progress.includes(100));
+ }
+ checks.push('HTTP/network/timeout upload failures never emit 100% or success metadata');
+ {
+  const {api,state}=harness();state.session=sessionFixture;state.responses.push(error('forbidden',403));
+  await assert.rejects(()=>api.uploadInstaller({platform:'windows',file,version:'1.1.0'}),e=>e.code==='forbidden');
+  assert.equal(state.xhrCalls.length,0);
+  await assert.rejects(()=>api.uploadInstaller({platform:'windows',file:{},version:'1.1.0'}),e=>e.code==='invalid_file');
+  checks.push('No upload after denied ticket or invalid File');
+ }
+ console.log(JSON.stringify({result:'PASS',checks},null,2));
+})().catch(error=>{console.error(error);process.exitCode=1;});

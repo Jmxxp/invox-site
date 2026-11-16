@@ -1,0 +1,4 @@
+# As ações administrativas validam Auth e a lista de administradores no servidor.
+# Downloads e feedbacks aceitam visitantes sem sessão.
+[functions.invox-api]
+verify_jwt = false

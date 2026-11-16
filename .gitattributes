@@ -1,0 +1,2 @@
+# Preserve the exact npm bundle bytes verified by shared/vendor/manifest.json.
+site-oficial/shared/vendor/supabase.js -text -whitespace

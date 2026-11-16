@@ -64,10 +64,104 @@
   });
   window.addEventListener('resize', () => { if (window.innerWidth > 900) closeSidebar(); });
   window.addEventListener('hashchange', () => navigate(location.hash.slice(1), false));
-  document.querySelector('#reset-demo').addEventListener('click', () => {
-    window.AdminFeedback?.resetDemo();
-    window.AdminSettings?.resetDemo();
-    toast('Prévia restaurada. Os rascunhos desta sessão foram limpos.');
-  });
+
   navigate(location.hash.slice(1), false);
+  const api = window.InvoxBackend;
+  const shell = document.getElementById('admin-shell');
+  const authScreen = document.getElementById('admin-auth');
+  const loginForm = document.getElementById('login-form');
+  const username = document.getElementById('login-username');
+  const password = document.getElementById('login-password');
+  const loginStatus = document.getElementById('login-status');
+  const retry = document.getElementById('auth-retry');
+  const refreshButton = document.getElementById('refresh-admin');
+  let refreshPromise = null;
+  let authEpoch = 0;
+  function authMessage(message, error = false) {
+    loginStatus.textContent = message;
+    loginStatus.classList.toggle('is-error', error);
+  }
+  function clearAdmin(message) {
+    authEpoch += 1;
+    shell.hidden = true;
+    authScreen.hidden = false;
+    closeSidebar();
+    document.getElementById('admin-email').textContent = '';
+    document.getElementById('summary-version').textContent = '—';
+    password.value = '';
+    window.AdminUI.lastState = null;
+    document.dispatchEvent(new CustomEvent('invox:admin-clear'));
+    authMessage(message || 'Entre com sua conta para continuar.');
+  }
+  async function refreshAdmin(notify = false) {
+    if (refreshPromise) return refreshPromise;
+    const epoch = authEpoch;
+    refreshButton.disabled = true;
+    retry.hidden = true;
+    refreshPromise = (async () => {
+      try {
+        const state = await api.adminState();
+        if (epoch !== authEpoch) return;
+        document.getElementById('admin-email').textContent = state.admin.username || state.admin.email;
+        document.getElementById('summary-version').textContent = state.settings.version;
+        shell.hidden = false;
+        authScreen.hidden = true;
+        password.value = '';
+        window.AdminUI.lastState = state;
+        document.dispatchEvent(new CustomEvent('invox:admin-state', {detail:state}));
+        if (notify) toast('Painel atualizado.');
+      } catch (error) {
+        if (epoch !== authEpoch) return;
+        clearAdmin();
+        authMessage(error.code === 'forbidden' ? 'Esta conta não tem permissão de administrador.' : (error.message || 'Não foi possível validar seu acesso. Tente novamente.'), true);
+        retry.hidden = false;
+      } finally {
+        refreshPromise = null;
+        refreshButton.disabled = false;
+      }
+    })();
+    return refreshPromise;
+  }
+  window.AdminUI.refresh = refreshAdmin;
+  refreshButton.addEventListener('click', () => refreshAdmin(true));
+  async function authAction(operation) {
+    loginForm.querySelectorAll('button').forEach(button => { button.disabled = true; });
+    try { await operation(); }
+    catch (error) { authMessage(error.message || 'Não foi possível entrar. Confira seus dados.', true); }
+    finally { password.value = ''; loginForm.querySelectorAll('button').forEach(button => { button.disabled = false; }); }
+  }
+  loginForm.addEventListener('submit', event => {
+    event.preventDefault();
+    if (!loginForm.reportValidity()) return;
+    if (!password.value) { authMessage('Informe a senha da sua conta.', true); password.focus(); return; }
+    authAction(async () => {
+      authMessage('Entrando…');
+      await api.signIn(username.value.trim(), password.value);
+      password.value = '';
+      await refreshAdmin();
+    });
+  });
+  document.getElementById('admin-signout').addEventListener('click', async () => {
+    clearAdmin('Saindo…');
+    const {error} = await api.auth.signOut({scope:'local'});
+    authMessage(error ? 'O painel foi fechado. Não foi possível encerrar a sessão no navegador; tente sair novamente ao entrar.' : 'Sessão encerrada.', Boolean(error));
+  });
+  retry.addEventListener('click', () => { if (api?.auth) refreshAdmin(); else location.reload(); });
+  if (!api?.auth || location.protocol === 'file:') {
+    authMessage(location.protocol === 'file:' ? 'Abra o painel por um servidor HTTP ou pelo endereço publicado para entrar.' : 'Não foi possível carregar a conexão. Recarregue a página.', true);
+    loginForm.querySelectorAll('button').forEach(button => { button.disabled = true; });
+    retry.hidden = false;
+    return;
+  }
+  api.auth.onAuthStateChange((event, session) => {
+    setTimeout(() => {
+      if (event === 'SIGNED_OUT') clearAdmin('Sessão encerrada.');
+      else if (session) refreshAdmin();
+    }, 0);
+  });
+  api.auth.getSession().then(({data,error}) => {
+    if (error) { authMessage(error.message, true); retry.hidden = false; }
+    else if (data.session) refreshAdmin();
+    else clearAdmin();
+  }).catch(() => { authMessage('Não foi possível recuperar sua sessão.', true); retry.hidden = false; });
 })();

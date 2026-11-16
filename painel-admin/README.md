@@ -1,19 +1,23 @@
 # Painel administrativo do INVOX
 
-Abra `index.html` no navegador. Funciona como arquivo local, sem instalação ou build. Fonte Montserrat, ícones Font Awesome e identidade visual estão nesta pasta.
+O painel usa o mesmo Supabase do site oficial e exige o usuário e a senha cadastrados para o administrador. A autorização é conferida no servidor antes de carregar os dados.
 
-## Áreas
+Na publicação, o endereço é `/admin/`. Para desenvolver, sirva a raiz do repositório por HTTP e abra `/painel-admin/`; abrir o HTML com `file://` não permite autenticação. Os recursos compartilhados ficam em `site-oficial/shared/` e o empacotamento ajusta os caminhos publicados.
 
-- **Feedbacks:** exemplos fictícios recentes, busca, filtros Novo/Respondido, nome, contato, anotação de resposta e reclassificação.
-- **Acesso ao site:** rascunho público ou privado com campo de senha.
-- **Versão e arquivos:** versão, notas e seleção ou arraste de instaladores Windows, macOS e Android.
+## Feedbacks
 
-## Prévia sem backend
+A lista traz os feedbacks reais mais recentes. Busque por nome, contato ou mensagem e use os filtros Novo/Respondido. Selecionar um item não altera a classificação. Use **Salvar anotação** ou **Marcar como respondido/novo** para persistir a mudança. Essas ações não enviam uma resposta ao contato.
 
-Os feedbacks não são recebidos do site. Os contatos de exemplo usam o domínio reservado `example.test`. Marcar como respondido não envia mensagem.
+**Atualizar** busca os dados mais recentes sem descartar anotações ou formulários em edição. **Sair** fecha a sessão local e limpa os dados carregados na interface.
 
-Tudo existe somente na memória da sessão e se perde ao recarregar. A senha não é persistida e **ainda não protege o site**. O painel não tem autenticação nesta etapa.
+## Acesso aos downloads
 
-Os instaladores são apenas selecionados: exibimos nome e tamanho, sem ler, executar ou enviar seu conteúdo. Salvar rascunho não publica versões ou altera os downloads reais. `1.0.0` é o exemplo inicial.
+No modo público, visitantes baixam sem senha. No privado, a senha é validada no servidor antes de gerar o link temporário. Senhas novas exigem pelo menos oito caracteres. O painel não recebe nem exibe o hash salvo; deixar o campo em branco mantém a senha já configurada.
 
-**Restaurar prévia** limpa os rascunhos e restaura os exemplos. A integração futura deverá implementar autenticação, feedbacks, proteção no servidor e publicação de instaladores.
+## Versão e instaladores
+
+Edite a versão no formato `1.1.0` e as novidades. Selecione ou arraste os instaladores por plataforma e clique em **Publicar versão e arquivos**. Arquivos novos substituem o instalador daquela plataforma após a publicação; plataformas sem uma nova seleção são mantidas.
+
+O limite por arquivo vem do servidor e aparece acima dos cartões. O envio acontece para armazenamento privado, sem executar os instaladores. Se a publicação falhar, a seleção permanece para tentar novamente. Um arquivo enviado só fica disponível no site depois de a publicação ser confirmada.
+
+As credenciais administrativas e chaves de serviço não devem ser incluídas nos arquivos públicos. O navegador recebe somente URL e chave publicável; as operações administrativas exigem sessão válida e permissão de administrador.

@@ -18,8 +18,13 @@
     android: { extensions: ['apk'], label: 'Android' }
   };
   const files = { windows: null, macos: null, android: null };
-  let accessDraft = { visibility: 'public', hasPassword: false };
-  let releaseDraft = { version: '1.0.0', notes: '', files: {} };
+  let savedSettings = { visibility: 'public', hasPassword: false, version: '1.1.0', releaseNotes: '', uploadLimitBytes: 52428800 };
+  let accessDirty = false;
+  let releaseDirty = false;
+  let busy = false;
+  let sessionEpoch = 0;
+  const uploaded = {};
+
 
   function toast(message, tone) {
     if (window.AdminUI) window.AdminUI.toast(message, tone || 'success');
@@ -42,7 +47,7 @@
       radio.closest('.visibility-option').classList.toggle('is-selected', radio.checked);
     });
     passwordFields.hidden = !isPrivate;
-    password.required = isPrivate;
+    password.required = isPrivate && !savedSettings.hasPassword;
     password.disabled = !isPrivate;
     password.setCustomValidity('');
     if (!isPrivate) {
@@ -52,29 +57,53 @@
   }
 
   function renderAccessPreview() {
-    const isPrivate = accessDraft.visibility === 'private';
+    const isPrivate = savedSettings.visibility === 'private';
     document.getElementById('access-preview-status').classList.toggle('is-private', isPrivate);
-    document.getElementById('access-preview-status').dataset.visibility = accessDraft.visibility;
-    document.getElementById('access-preview-status').textContent = isPrivate ? 'Rascunho privado' : 'Rascunho público';
+    document.getElementById('access-preview-status').dataset.visibility = savedSettings.visibility;
+    document.getElementById('access-preview-status').textContent = isPrivate ? 'Downloads com senha' : 'Downloads liberados';
     document.getElementById('access-preview-icon').className = 'fa-solid ' + (isPrivate ? 'fa-lock' : 'fa-globe');
     document.getElementById('access-preview-description').textContent = isPrivate
-      ? 'A configuração com senha está preparada nesta sessão. O acesso real ainda depende da integração do servidor.'
-      : 'O site ficará disponível para qualquer visitante quando esta configuração for integrada.';
+      ? 'Cada download exige a senha configurada e recebe um link temporário.'
+      : 'Qualquer visitante pode baixar os instaladores disponíveis diretamente pelo site.';
   }
 
   radios.forEach(function (radio) { radio.addEventListener('change', updateVisibility); });
   passwordToggle.addEventListener('click', function () { setPasswordVisibility(password.type === 'password'); });
   password.addEventListener('input', function () { password.setCustomValidity(''); });
-  accessForm.addEventListener('submit', function (event) {
+  accessForm.addEventListener('input', function () { accessDirty = true; });
+  accessForm.addEventListener('change', function () { accessDirty = true; });
+  releaseForm.addEventListener('input', function () { releaseDirty = true; });
+  function setBusy(form, value) {
+    form.querySelectorAll('input,textarea,button').forEach(function (field) { field.disabled = value; });
+    if (!value) updateVisibility();
+  }
+  accessForm.addEventListener('submit', async function (event) {
     event.preventDefault();
+    if (busy) return;
     const isPrivate = selectedVisibility() === 'private';
-    if (isPrivate && (password.value.length < 8 || !password.value.trim())) {
+    if (isPrivate && ((!savedSettings.hasPassword && !password.value) || (password.value && (password.value.length < 8 || !password.value.trim())))) {
       password.setCustomValidity('Use uma senha com pelo menos 8 caracteres.');
     }
     if (!accessForm.reportValidity()) return;
-    accessDraft = { visibility: isPrivate ? 'private' : 'public', hasPassword: isPrivate && Boolean(password.value) };
-    renderAccessPreview();
-    toast('Rascunho de acesso salvo nesta sessão. O site publicado não foi alterado.');
+    const payload = {visibility:isPrivate ? 'private' : 'public',password:isPrivate ? password.value : ''};
+    const epoch = sessionEpoch;
+    busy = true;
+    setBusy(accessForm, true);
+    try {
+      const settings = await window.InvoxBackend.saveAccess(payload);
+      if (epoch !== sessionEpoch) return;
+      savedSettings = Object.assign({}, savedSettings, settings);
+      password.value = '';
+      accessDirty = false;
+      renderAccessPreview();
+      toast('Acesso atualizado no site.');
+    } catch (error) {
+      if (epoch === sessionEpoch) toast(error.message || 'Não foi possível salvar o acesso.', 'error');
+    } finally {
+      payload.password = '';
+      busy = false;
+      setBusy(accessForm, false);
+    }
   });
 
   function formatBytes(bytes) {
@@ -109,6 +138,7 @@
   }
 
   function selectFile(platform, selection) {
+    if (busy) return;
     const elements = fileElements(platform);
     elements.error.textContent = '';
     if (!selection || !selection.length) return;
@@ -122,7 +152,13 @@
       elements.error.textContent = 'Formato inválido. Use ' + platforms[platform].extensions.map(function (ext) { return ext.toUpperCase(); }).join(', ') + '.';
       return;
     }
+    if (file.size <= 0 || file.size > savedSettings.uploadLimitBytes) {
+      elements.error.textContent = 'Use um arquivo entre 1 B e ' + formatBytes(savedSettings.uploadLimitBytes) + '.';
+      return;
+    }
     files[platform] = file;
+    delete uploaded[platform];
+    releaseDirty = true;
     elements.input.value = '';
     renderFile(platform);
   }
@@ -148,7 +184,10 @@
       selectFile(platform, event.dataTransfer && event.dataTransfer.files);
     });
     releaseForm.querySelector('.remove-file[data-platform="' + platform + '"]').addEventListener('click', function () {
+      if (busy) return;
       files[platform] = null;
+      delete uploaded[platform];
+      releaseDirty = true;
       elements.input.value = '';
       elements.error.textContent = '';
       renderFile(platform);
@@ -157,45 +196,110 @@
   });
 
   version.addEventListener('input', function () { version.setCustomValidity(''); });
-  releaseForm.addEventListener('submit', function (event) {
+  releaseForm.addEventListener('submit', async function (event) {
     event.preventDefault();
+    if (busy) return;
     version.value = version.value.trim();
-    version.setCustomValidity(versionPattern.test(version.value) ? '' : 'Use uma versão válida, como 1.0.0 ou 1.0.0-beta.1.');
+    version.setCustomValidity(versionPattern.test(version.value) ? '' : 'Use uma versão válida, como 1.1.0 ou 1.1.0-beta.1.');
     if (!releaseForm.reportValidity()) return;
-    releaseDraft = { version: version.value, notes: notes.value.trim(), files: {} };
-    Object.keys(platforms).forEach(function (platform) { releaseDraft.files[platform] = fileMetadata(files[platform]); });
-    document.getElementById('summary-version').textContent = releaseDraft.version;
-    toast('Rascunho da versão salvo nesta sessão. Nenhum arquivo foi enviado.');
+    const selected = Object.keys(platforms).filter(function (platform) { return files[platform]; });
+    const releaseVersion = version.value;
+    const releaseNotes = notes.value.trim();
+    const epoch = sessionEpoch;
+    const progressBox = document.getElementById('release-progress');
+    const progress = document.getElementById('upload-progress');
+    const status = document.getElementById('upload-status');
+    busy = true;
+    setBusy(releaseForm, true);
+    progressBox.hidden = false;
+    progress.removeAttribute('value');
+    const results = [];
+    try {
+      for (let index = 0; index < selected.length; index += 1) {
+        const platform = selected[index];
+        const file = files[platform];
+        status.textContent = 'Enviando ' + platforms[platform].label + ' (' + (index + 1) + '/' + selected.length + ')…';
+        if (!uploaded[platform] || uploaded[platform].file !== file || uploaded[platform].version !== releaseVersion) {
+          const metadata = await window.InvoxBackend.uploadInstaller({platform:platform,file:file,version:releaseVersion,onProgress:function (percent) {
+            if (epoch !== sessionEpoch) return;
+            if (Number.isFinite(percent)) progress.value = Math.max(0, Math.min(100, percent));
+          }});
+          if (epoch !== sessionEpoch) return;
+          uploaded[platform] = {file:file,version:releaseVersion,metadata:metadata};
+        }
+        results.push(uploaded[platform].metadata);
+        progress.removeAttribute('value');
+      }
+      status.textContent = 'Publicando versão…';
+      const state = await window.InvoxBackend.saveRelease({version:releaseVersion,releaseNotes:releaseNotes,files:results});
+      if (epoch !== sessionEpoch) return;
+      Object.keys(platforms).forEach(function (platform) { files[platform] = null; delete uploaded[platform]; renderFile(platform); });
+      releaseDirty = false;
+      loadState(state);
+      progress.value = 100;
+      status.textContent = 'Versão ' + state.settings.version + ' publicada.';
+      toast('Versão e instaladores publicados.');
+    } catch (error) {
+      if (epoch !== sessionEpoch) return;
+      status.textContent = 'A publicação não foi concluída. Sua seleção foi preservada para tentar novamente.';
+      toast(error.message || 'Não foi possível publicar a versão.', 'error');
+    } finally {
+      busy = false;
+      setBusy(releaseForm, false);
+    }
   });
 
-  window.AdminSettings = {
-    resetDemo: function () {
-      accessForm.reset();
-      releaseForm.reset();
+  function loadState(state) {
+    savedSettings = Object.assign({}, savedSettings, state.settings);
+    if (!accessDirty) {
+      radios.forEach(function (radio) { radio.checked = radio.value === savedSettings.visibility; });
       password.value = '';
-      version.value = '1.0.0';
-      version.setCustomValidity('');
-      accessDraft = { visibility: 'public', hasPassword: false };
-      releaseDraft = { version: '1.0.0', notes: '', files: {} };
-      Object.keys(platforms).forEach(function (platform) {
-        files[platform] = null;
-        fileElements(platform).error.textContent = '';
-        fileElements(platform).dropzone.classList.remove('is-dragging');
-        renderFile(platform);
-      });
-      document.getElementById('summary-version').textContent = '1.0.0';
-      updateVisibility();
-      renderAccessPreview();
-    },
-    getState: function () {
-      return {
-        access: Object.assign({}, accessDraft),
-        release: JSON.parse(JSON.stringify(releaseDraft)),
-        selectedFiles: Object.fromEntries(Object.keys(platforms).map(function (platform) { return [platform, fileMetadata(files[platform])]; }))
-      };
     }
-  };
-
+    if (!releaseDirty) {
+      version.value = savedSettings.version;
+      notes.value = savedSettings.releaseNotes || '';
+    }
+    document.getElementById('summary-version').textContent = savedSettings.version;
+    document.getElementById('upload-limit').textContent = 'Limite por arquivo: ' + formatBytes(savedSettings.uploadLimitBytes) + '. Arquivos novos substituem a plataforma selecionada após publicar.';
+    Object.keys(platforms).forEach(function (platform) {
+      const card = fileElements(platform).dropzone.closest('.upload-card');
+      let current = card.querySelector('.current-installer');
+      if (!current) { current = document.createElement('p'); current.className = 'current-installer'; card.append(current); }
+      const installer = (state.installers || []).find(function (row) { return row.platform === platform; });
+      current.textContent = installer ? 'Publicado: ' + installer.fileName + ' · ' + formatBytes(installer.size) + ' · v' + installer.version : 'Nenhum instalador publicado.';
+    });
+    updateVisibility();
+    renderAccessPreview();
+  }
+  function clear() {
+    sessionEpoch += 1;
+    accessForm.reset();
+    releaseForm.reset();
+    savedSettings = {visibility:'public',hasPassword:false,version:'1.1.0',releaseNotes:'',uploadLimitBytes:52428800};
+    accessDirty = false;
+    releaseDirty = false;
+    password.value = '';
+    version.setCustomValidity('');
+    Object.keys(platforms).forEach(function (platform) {
+      files[platform] = null;
+      delete uploaded[platform];
+      const elements = fileElements(platform);
+      elements.input.value = '';
+      elements.error.textContent = '';
+      elements.dropzone.classList.remove('is-dragging');
+      renderFile(platform);
+    });
+    document.querySelectorAll('.current-installer').forEach(function (element) { element.textContent = ''; });
+    document.getElementById('release-progress').hidden = true;
+    document.getElementById('upload-status').textContent = '';
+    updateVisibility();
+  }
+  window.AdminSettings = {clear:clear,getState:function () {
+    return {settings:Object.assign({},savedSettings),accessDirty:accessDirty,releaseDirty:releaseDirty,selectedFiles:Object.fromEntries(Object.keys(platforms).map(function (platform) { return [platform,fileMetadata(files[platform])]; }))};
+  }};
+  document.addEventListener('invox:admin-state', function (event) { loadState(event.detail); });
+  document.addEventListener('invox:admin-clear', clear);
   updateVisibility();
   renderAccessPreview();
+  if (window.AdminUI && window.AdminUI.lastState) loadState(window.AdminUI.lastState);
 })();

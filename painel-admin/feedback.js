@@ -14,24 +14,8 @@
   var fullDate = new Intl.DateTimeFormat('pt-BR', {
     dateStyle: 'long', timeStyle: 'short', timeZone: 'America/Sao_Paulo'
   });
-  function makeDemo() {
-    var now = Date.now();
-    return [
-      { id: 'demo-01', name: 'Jogador de exemplo 01', contact: 'exemplo01@example.test',
-        message: 'Seria muito legal combinar veículos com habilidades de voo! Imaginem uma corrida de carros voadores em um mapa criado pela comunidade.',
-        status: 'new', receivedAt: new Date(now - 12 * 60000).toISOString(), note: '' },
-      { id: 'demo-02', name: 'Jogador de exemplo 02', contact: 'exemplo02@example.test',
-        message: 'Durante um teste com amigos, um bloco continuou flutuando depois de remover a base. Seria ótimo revisar essa interação da física.\n\nMensagem fictícia para demonstrar o painel.',
-        status: 'new', receivedAt: new Date(now - 48 * 60000).toISOString(), note: '' },
-      { id: 'demo-03', name: 'Jogador de exemplo 03', contact: 'exemplo03@example.test',
-        message: 'Adoraria ter mais opções para personalizar as regras das salas. Poder salvar combinações de voz seria incrível.',
-        status: 'new', receivedAt: new Date(now - 3 * 3600000).toISOString(), note: '' },
-      { id: 'demo-04', name: 'Jogador de exemplo 04', contact: 'exemplo04@example.test',
-        message: 'Testei as combinações de objetos com meus amigos e nos divertimos muito. Minha sugestão é adicionar um atalho para repetir o último comando de voz.',
-        status: 'answered', receivedAt: new Date(now - 26 * 3600000).toISOString(),
-        note: 'Exemplo de anotação interna: sugestão registrada para avaliar nas próximas versões.' }
-    ];
-  }
+  var drafts = new Map();
+  var busyId = null;
   function el(tag, className, content) {
     var element = document.createElement(tag);
     if (className) element.className = className;
@@ -90,8 +74,8 @@
   function renderList(items) {
     list.replaceChildren();
     if (!items.length) {
-      list.append(emptyState('feedback-empty', 'Nenhum feedback encontrado',
-        'Tente outra busca ou selecione um filtro diferente.', 'fa-magnifying-glass'));
+      list.append(emptyState('feedback-empty', state.items.length ? 'Nenhum feedback encontrado' : 'Sua comunidade começa aqui',
+        state.items.length ? 'Tente outra busca ou selecione um filtro diferente.' : 'Os feedbacks enviados pelo site aparecerão nesta área.', 'fa-magnifying-glass'));
       return;
     }
     items.forEach(function (item) {
@@ -130,7 +114,7 @@
     }
     var header = el('div', 'feedback-detail-header');
     var topline = el('div', 'feedback-detail-topline');
-    topline.append(statusPill(item.status), el('span', 'feedback-reference', 'Feedback de exemplo'));
+    topline.append(statusPill(item.status), el('span', 'feedback-reference', 'Feedback recebido'));
     var contact = el('p', 'feedback-contact');
     contact.append(icon('fa-at'), document.createTextNode(item.contact));
     var date = el('time', 'feedback-date', 'Recebido em ' + fullDate.format(new Date(item.receivedAt)) + ' · Brasília');
@@ -138,20 +122,21 @@
     header.append(topline, el('h3', 'feedback-detail-name', item.name), contact, date);
     var message = el('div', 'feedback-message', item.message);
     var noteBlock = el('div', 'feedback-note-block');
-    var noteLabel = el('label', 'field-label', 'Anotação de resposta (prévia)');
+    var noteLabel = el('label', 'field-label', 'Anotação de resposta');
     noteLabel.htmlFor = 'reply-note';
     var note = el('textarea');
     note.id = 'reply-note';
     note.rows = 4;
     note.maxLength = 5000;
     note.placeholder = 'Registre uma resposta ou observação interna...';
-    note.value = item.note;
+    note.value = drafts.has(item.id) ? drafts.get(item.id) : item.note;
+    note.disabled = Boolean(busyId);
     note.setAttribute('aria-describedby', 'reply-note-help feedback-send-note');
-    var noteHelp = el('p', 'field-help note-status', 'Anotação mantida apenas nesta sessão.');
+    var noteHelp = el('p', 'field-help note-status', 'Salve a anotação para mantê-la no painel.');
     noteHelp.id = 'reply-note-help';
     note.addEventListener('input', function () {
-      item.note = note.value;
-      noteHelp.textContent = 'Anotação mantida apenas nesta sessão.';
+      drafts.set(item.id, note.value);
+      noteHelp.textContent = 'Alterações não salvas.';
       renderList(filteredItems());
     });
     noteBlock.append(noteLabel, note, noteHelp);
@@ -166,19 +151,38 @@
     action.dataset.action = isNew ? 'mark-answered' : 'mark-new';
     action.append(icon(isNew ? 'fa-check' : 'fa-rotate-left'),
       document.createTextNode(isNew ? 'Marcar como respondido' : 'Marcar como novo'));
-    action.addEventListener('click', function () {
-      item.status = item.status === 'new' ? 'answered' : 'new';
-      render();
-      if (window.AdminUI && typeof window.AdminUI.toast === 'function') {
-        window.AdminUI.toast('Classificação atualizada nesta sessão.');
-      }
-    });
-    actions.append(action);
+    action.disabled = Boolean(busyId);
+    action.addEventListener('click', function () { saveItem(item, isNew ? 'answered' : 'new'); });
+    var save = el('button', 'button button-ghost');
+    save.type = 'button';
+    save.dataset.action = 'save-note';
+    save.disabled = Boolean(busyId);
+    save.append(icon('fa-floppy-disk'), document.createTextNode('Salvar anotação'));
+    save.addEventListener('click', function () { saveItem(item, item.status); });
+    actions.append(action, save);
     var notice = el('p', 'feedback-local-notice');
     notice.id = 'feedback-send-note';
     notice.append(icon('fa-circle-info'),
       document.createTextNode('Classificar como respondido não envia uma mensagem.'));
     detail.append(actions, notice);
+  }
+  async function saveItem(item, status) {
+    if (busyId) return;
+    busyId = item.id;
+    var note = drafts.has(item.id) ? drafts.get(item.id) : item.note;
+    detail.querySelectorAll('button').forEach(function (button) { button.disabled = true; });
+    try {
+      var saved = await window.InvoxBackend.updateFeedback({id:item.id,status:status,note:note});
+      var index = state.items.findIndex(function (row) { return row.id === item.id; });
+      if (index >= 0) state.items[index] = saved;
+      if (drafts.get(item.id) === note) drafts.delete(item.id);
+      window.AdminUI.toast('Feedback atualizado.');
+    } catch (error) {
+      window.AdminUI.toast(error.message || 'Não foi possível salvar o feedback.', 'error');
+    } finally {
+      busyId = null;
+      render();
+    }
   }
   function render() {
     var visible = filteredItems();
@@ -189,11 +193,12 @@
     renderList(visible);
     renderDetail(visible.find(function (item) { return item.id === state.selectedId; }));
   }
-  function resetDemo() {
-    state.items = makeDemo();
+  function clear() {
+    state.items = [];
+    drafts.clear();
     state.filter = 'all';
     state.query = '';
-    state.selectedId = state.items[0].id;
+    state.selectedId = null;
     search.value = '';
     render();
   }
@@ -208,8 +213,17 @@
     render();
   });
   window.AdminFeedback = {
-    resetDemo: resetDemo,
+    clear: clear,
     getState: function () { return JSON.parse(JSON.stringify(state)); }
   };
-  resetDemo();
+  document.addEventListener('invox:admin-state', function (event) {
+    state.items = event.detail.feedbacks || [];
+    render();
+  });
+  document.addEventListener('invox:admin-clear', clear);
+  clear();
+  if (window.AdminUI && window.AdminUI.lastState) {
+    state.items = window.AdminUI.lastState.feedbacks || [];
+    render();
+  }
 })();
