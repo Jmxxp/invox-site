@@ -2,6 +2,8 @@
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; object-src 'none'; frame-src 'none'; form-action 'none'; script-src 'self' 'sha256-3sIf4mUNjkEOHjbYYTRRnrjm3JuThNaCf+TvkvSx6YI='; script-src-attr 'none'; style-src 'self'; style-src-elem 'self'; style-src-attr 'unsafe-inline'; img-src 'self'; font-src 'self'; media-src 'self'; connect-src https://wsfdwyghqqaerivyrbil.supabase.co https://wsfdwyghqqaerivyrbil.storage.supabase.co; worker-src 'none'">
+  <meta name="referrer" content="no-referrer">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#190b2d">
   <meta name="description" content="INVOX Game: crie com a voz em um sandbox multiplayer. Invoque itens, combine mecânicas e jogue com até 12 jogadores. Sua voz. Suas regras. Windows e Android.">
@@ -66,20 +68,20 @@
   <link rel="stylesheet" href="about.css">
   <link rel="stylesheet" href="lobby.css">
   <link rel="stylesheet" href="premium.css?v=20261117-centered">
-  <link rel="stylesheet" href="feedback.css">
+  <link rel="stylesheet" href="feedback.css?v=20261117-game-feedback">
   <link rel="stylesheet" href="integration.css?v=20261117-availability">
   <link rel="stylesheet" href="downloads.css?v=20261117-spacing">
   <link rel="stylesheet" href="navigation.css?v=20261117-corners">
   <link rel="stylesheet" href="modes.css?v=20261117-mode-borders">
   <link rel="stylesheet" href="hero.css?v=20261117-scale-position">
   <script src="config.js" defer></script>
-  <script src="shared/invox-client.js?v=20261117-counting-sessions" defer></script>
+  <script src="shared/invox-client.js?v=20261117-game-services" defer></script>
   <script src="analytics.js" defer></script>
   <script src="script.js?v=20261117-availability" defer></script>
   <script src="lobby.js?v=20261117-original-fixed-camera" defer></script>
   <script src="effects.js" defer></script>
   <script src="modes.js?v=20261117-original-modes" defer></script>
-  <script src="feedback.js" defer></script>
+  <script src="feedback.js?v=20261117-game-feedback" defer></script>
 </head>
 <body class="fx-enabled">
   <svg class="asset-filters" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false" width="0" height="0"><defs><filter id="logo-remove-black" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  1 1 1 0 0"/></filter></defs></svg>
@@ -219,11 +221,11 @@
   <form class="feedback-form" id="feedback-form">
     <div class="feedback-trap" aria-hidden="true"><label for="feedback-website">Seu site</label><input id="feedback-website" name="website" type="text" tabindex="-1" autocomplete="off"></div>
     <div class="feedback-fields">
-      <div class="feedback-field"><label for="feedback-name">Seu nome</label><input id="feedback-name" name="name" type="text" autocomplete="name" placeholder="Como podemos chamar você?" required minlength="2" maxlength="80"></div>
-      <div class="feedback-field"><label for="feedback-contact">Seu contato</label><input id="feedback-contact" name="contact" type="text" autocomplete="off" placeholder="E-mail ou WhatsApp" required minlength="3" maxlength="140"></div>
+      <div class="feedback-field"><label for="feedback-name">Seu nome</label><input id="feedback-name" name="name" type="text" autocomplete="name" placeholder="Como podemos chamar você?" required minlength="2" maxlength="160"></div>
+      <div class="feedback-field"><label for="feedback-kind">Tipo de mensagem</label><select id="feedback-kind" name="kind"><option value="feedback">Ajuda ou feedback</option><option value="suggestion">Sugestão para o jogo</option></select></div>
     </div>
-    <div class="feedback-field"><label for="feedback-message">Seu feedback</label><textarea id="feedback-message" name="message" rows="5" placeholder="Descreva sua ideia, sugestão ou o que aconteceu no jogo..." required minlength="10" maxlength="2000" aria-describedby="feedback-count"></textarea><span class="feedback-count" id="feedback-count">0 / 2000</span></div>
-    <div class="feedback-actions"><p>Seu nome e contato serão usados para acompanhar seu feedback.</p><button class="feedback-submit" id="feedback-submit" type="submit" disabled>ENVIAR FEEDBACK <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></button></div>
+    <div class="feedback-field"><label for="feedback-message">Sua mensagem</label><textarea id="feedback-message" name="message" rows="5" placeholder="Descreva sua ideia, sugestão ou o que aconteceu no jogo..." required minlength="10" maxlength="4000" aria-describedby="feedback-count"></textarea><span class="feedback-count" id="feedback-count">0 / 2000</span></div>
+    <div class="feedback-actions"><p>Envie apenas seu nome e sua mensagem. Não é preciso informar contato.</p><button class="feedback-submit" id="feedback-submit" type="submit" disabled>ENVIAR MENSAGEM <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></button></div>
     <p class="feedback-status" id="feedback-status" role="status" aria-live="polite" tabindex="-1"></p>
   </form>
 </section>

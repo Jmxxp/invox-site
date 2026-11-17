@@ -83,6 +83,7 @@
     auth: sdk?.auth,
     request,
     publicState: () => request('state'),
+    gameState: () => request('game-state'),
     trackView: eventId => request('track-view', { eventId }),
     analytics: (period = 'week') => request('analytics', { period }, { admin: true }),
     resetAnalytics: () => request('reset-analytics', {}, { admin: true }),
@@ -110,6 +111,8 @@
     saveAccess: data => request('save-access', data, { admin: true }),
     saveRelease: data => request('save-release', data, { admin: true }),
     updateFeedback: data => request('update-feedback', data, { admin: true }),
+    saveAnnouncement: data => request('save-announcement', data, { admin: true }),
+    setAnnouncementActive: data => request('set-announcement-active', data, { admin: true }),
     createUpload: data => request('create-upload', data, { admin: true }),
     async signIn(username, password) {
       if (!sdk) throw failure('offline', 'Cliente de autenticação indisponível. Recarregue a página.');

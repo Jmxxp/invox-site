@@ -5,8 +5,9 @@
   var list = document.getElementById('feedback-list');
   var detail = document.getElementById('feedback-detail');
   var search = document.getElementById('feedback-search');
+  var kindFilter = document.getElementById('feedback-kind-filter');
   var filters = Array.from(panel.querySelectorAll('[data-filter]'));
-  var state = { items: [], filter: 'all', query: '', selectedId: null };
+  var state = { items: [], filter: 'all', kind: 'all', query: '', selectedId: null };
   var shortDate = new Intl.DateTimeFormat('pt-BR', {
     day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
     timeZone: 'America/Sao_Paulo'
@@ -34,15 +35,18 @@
     var query = normalize(state.query.trim());
     return state.items.filter(function (item) {
       return (state.filter === 'all' || item.status === state.filter) &&
-        (!query || normalize(item.name + ' ' + item.contact + ' ' + item.message).includes(query));
+        (state.kind === 'all' || (item.kind || 'feedback') === state.kind) &&
+        (!query || normalize(item.name + ' ' + item.message + ' ' + kindLabel(item) + ' ' + sourceLabel(item)).includes(query));
     }).sort(function (a, b) {
       return Date.parse(b.receivedAt) - Date.parse(a.receivedAt);
     });
   }
+  function kindLabel(item) { return item.kind === 'suggestion' ? 'Sugestão' : 'Ajuda / feedback'; }
+  function sourceLabel(item) { return item.source === 'game' ? 'Jogo' : 'Site'; }
   function statusPill(status) {
     var badge = el('span', 'status-pill ' + status);
     badge.append(icon(status === 'new' ? 'fa-circle' : 'fa-check'),
-      document.createTextNode(status === 'new' ? 'Novo' : 'Respondido'));
+      document.createTextNode(status === 'new' ? 'Novo' : 'Tratado'));
     return badge;
   }
   function setText(id, value) {
@@ -75,7 +79,7 @@
     list.replaceChildren();
     if (!items.length) {
       list.append(emptyState('feedback-empty', state.items.length ? 'Nenhum feedback encontrado' : 'Sua comunidade começa aqui',
-        state.items.length ? 'Tente outra busca ou selecione um filtro diferente.' : 'Os feedbacks enviados pelo site aparecerão nesta área.', 'fa-magnifying-glass'));
+        state.items.length ? 'Tente outra busca ou selecione um filtro diferente.' : 'As mensagens enviadas pelo site e pelo jogo aparecerão nesta área.', 'fa-magnifying-glass'));
       return;
     }
     items.forEach(function (item) {
@@ -92,6 +96,7 @@
       if (preview.length > 112) preview = preview.slice(0, 109) + '…';
       var bottom = el('div', 'feedback-item-bottom');
       bottom.append(statusPill(item.status));
+      bottom.append(el('span', 'feedback-kind ' + (item.kind || 'feedback'), kindLabel(item)), el('span', 'feedback-source', sourceLabel(item)));
       if (item.note.trim()) {
         var indicator = el('span', 'feedback-note-indicator');
         indicator.append(icon('fa-note-sticky'), document.createTextNode('Anotação'));
@@ -114,15 +119,18 @@
     }
     var header = el('div', 'feedback-detail-header');
     var topline = el('div', 'feedback-detail-topline');
-    topline.append(statusPill(item.status), el('span', 'feedback-reference', 'Feedback recebido'));
-    var contact = el('p', 'feedback-contact');
-    contact.append(icon('fa-at'), document.createTextNode(item.contact));
+    topline.append(statusPill(item.status), el('span', 'feedback-reference', kindLabel(item) + ' · ' + sourceLabel(item)));
     var date = el('time', 'feedback-date', 'Recebido em ' + fullDate.format(new Date(item.receivedAt)) + ' · Brasília');
     date.dateTime = item.receivedAt;
-    header.append(topline, el('h3', 'feedback-detail-name', item.name), contact, date);
+    header.append(topline, el('h3', 'feedback-detail-name', item.name), date);
+    if (item.contact) {
+      var contact = el('p', 'feedback-contact');
+      contact.append(icon('fa-at'), document.createTextNode(item.contact));
+      header.append(contact);
+    }
     var message = el('div', 'feedback-message', item.message);
     var noteBlock = el('div', 'feedback-note-block');
-    var noteLabel = el('label', 'field-label', 'Anotação de resposta');
+    var noteLabel = el('label', 'field-label', 'Anotação interna');
     noteLabel.htmlFor = 'reply-note';
     var note = el('textarea');
     note.id = 'reply-note';
@@ -150,7 +158,7 @@
     action.type = 'button';
     action.dataset.action = isNew ? 'mark-answered' : 'mark-new';
     action.append(icon(isNew ? 'fa-check' : 'fa-rotate-left'),
-      document.createTextNode(isNew ? 'Marcar como respondido' : 'Marcar como novo'));
+      document.createTextNode(isNew ? 'Marcar como tratado' : 'Marcar como novo'));
     action.disabled = Boolean(busyId);
     action.addEventListener('click', function () { saveItem(item, isNew ? 'answered' : 'new'); });
     var save = el('button', 'button button-ghost');
@@ -163,7 +171,7 @@
     var notice = el('p', 'feedback-local-notice');
     notice.id = 'feedback-send-note';
     notice.append(icon('fa-circle-info'),
-      document.createTextNode('Classificar como respondido não envia uma mensagem.'));
+      document.createTextNode('As anotações ficam no painel. Marcar como tratado não envia uma mensagem.'));
     detail.append(actions, notice);
   }
   async function saveItem(item, status) {
@@ -185,6 +193,8 @@
     }
   }
   function render() {
+    var focusedNote = document.activeElement && document.activeElement.id === 'reply-note' ? document.activeElement : null;
+    var selection = focusedNote ? [focusedNote.selectionStart, focusedNote.selectionEnd, focusedNote.scrollTop] : null;
     var visible = filteredItems();
     if (!visible.some(function (item) { return item.id === state.selectedId; })) {
       state.selectedId = visible.length ? visible[0].id : null;
@@ -192,11 +202,21 @@
     updateCounts();
     renderList(visible);
     renderDetail(visible.find(function (item) { return item.id === state.selectedId; }));
+    if (selection) {
+      var note = document.getElementById('reply-note');
+      if (note && !note.disabled && note.focus) {
+        note.focus({ preventScroll: true });
+        if (note.setSelectionRange) note.setSelectionRange(selection[0], selection[1]);
+        note.scrollTop = selection[2];
+      }
+    }
   }
   function clear() {
     state.items = [];
     drafts.clear();
     state.filter = 'all';
+    state.kind = 'all';
+    if (kindFilter) kindFilter.value = 'all';
     state.query = '';
     state.selectedId = null;
     search.value = '';
@@ -210,6 +230,10 @@
   });
   search.addEventListener('input', function () {
     state.query = search.value;
+    render();
+  });
+  if (kindFilter) kindFilter.addEventListener('change', function () {
+    state.kind = ['feedback', 'suggestion'].includes(kindFilter.value) ? kindFilter.value : 'all';
     render();
   });
   window.AdminFeedback = {

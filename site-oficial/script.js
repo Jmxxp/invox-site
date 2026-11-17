@@ -172,7 +172,7 @@
   }
   function startDownload(result) {
     const url = new URL(result.url);
-    if (url.origin !== 'https://wsfdwyghqqaerivyrbil.supabase.co' || !url.pathname.startsWith('/storage/v1/object/sign/')) throw new Error('Invalid download URL');
+    if (url.origin !== 'https://wsfdwyghqqaerivyrbil.supabase.co' || url.username || url.password || url.hash || !url.pathname.startsWith('/storage/v1/object/sign/invox-installers/')) throw new Error('Invalid download URL');
     const link = document.createElement('a');
     link.href = url.href;
     link.download = typeof result.fileName === 'string' ? result.fileName : 'INVOX';

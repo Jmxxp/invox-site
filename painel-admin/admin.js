@@ -2,7 +2,8 @@
   'use strict';
   const pages = {
     analytics: ['O INVOX em números', 'Acompanhe as visualizações do site e os downloads por plataforma.', 'Análises'],
-    feedback: ['Feedbacks da comunidade', 'Organize as ideias que podem virar o próximo absurdo.', 'Feedbacks'],
+    feedback: ['Mensagens da comunidade', 'Ajuda, feedback e sugestões do site e do jogo.', 'Mensagens'],
+    announcements: ['Recados para os jogadores', 'Publique avisos que aparecem dentro do jogo.', 'Recados'],
     access: ['Acesso ao site', 'Prepare a visibilidade e o acesso da próxima publicação.', 'Acesso ao site'],
     downloads: ['Versão e arquivos', 'Organize os instaladores e as novidades da próxima versão.', 'Versão e arquivos']
   };
@@ -81,12 +82,63 @@
   const refreshButton = document.getElementById('refresh-admin');
   let refreshPromise = null;
   let authEpoch = 0;
+  let autoRefreshTimer = null;
+  let knownFeedbackIds = null;
+  let feedbackBaseline = 0;
+  let browserNotifications = false;
+  const notificationButton = document.getElementById('enable-feedback-notifications');
+  const notificationStatus = document.getElementById('feedback-notification-status');
+  const notificationKey = 'invox-admin-feedback-notifications';
+  try { browserNotifications = window.localStorage?.getItem(notificationKey) === 'enabled'; } catch { /* Optional preference only. */ }
+  function updateNotificationControl() {
+    if (!notificationButton) return;
+    const supported = typeof window.Notification === 'function';
+    notificationButton.disabled = !supported;
+    notificationButton.textContent = browserNotifications && window.Notification?.permission === 'granted' ? 'Desativar notificações do navegador' : 'Ativar notificações do navegador';
+    if (notificationStatus) notificationStatus.textContent = !supported ? 'As novas mensagens atualizam o painel automaticamente. Este navegador não oferece notificações.' : 'Atualização a cada 20 segundos enquanto o painel estiver aberto. Novidades aparecem também no contador lateral.';
+  }
+  notificationButton?.addEventListener('click', async () => {
+    if (typeof window.Notification !== 'function') return;
+    if (browserNotifications && window.Notification.permission === 'granted') browserNotifications = false;
+    else browserNotifications = (await window.Notification.requestPermission()) === 'granted';
+    try { window.localStorage?.setItem(notificationKey, browserNotifications ? 'enabled' : 'disabled'); } catch { /* Session preference still works. */ }
+    updateNotificationControl();
+    if (!browserNotifications && window.Notification.permission === 'denied' && notificationStatus) notificationStatus.textContent = 'Notificações bloqueadas pelo navegador. O contador de novas mensagens continua ativo no painel.';
+  });
+  function announceFeedbacks(items) {
+    const ids = new Set(items.map(item => item.id));
+    if (!knownFeedbackIds) feedbackBaseline = Math.max(0, ...items.map(item => Date.parse(item.receivedAt) || 0));
+    const incoming = knownFeedbackIds ? items.filter(item => !knownFeedbackIds.has(item.id) && item.status === 'new' && Date.parse(item.receivedAt) >= feedbackBaseline) : [];
+    // Retain observed IDs so changing filters, a refresh or an older row moving
+    // into the bounded list never announces the same record twice this session.
+    if (!knownFeedbackIds) knownFeedbackIds = new Set();
+    for (const id of ids) knownFeedbackIds.add(id);
+    if (!incoming.length) return;
+    toast(incoming.length === 1 ? 'Uma nova mensagem chegou à comunidade.' : `${incoming.length} novas mensagens chegaram à comunidade.`);
+    if (browserNotifications && window.Notification?.permission === 'granted') {
+      for (const item of incoming.slice(0, 3)) {
+        try {
+          const notification = new window.Notification(item.kind === 'suggestion' ? 'Nova sugestão no INVOX' : 'Novo feedback no INVOX', { body: `Mensagem de ${item.name}. Abra o painel para ler.`, tag: `invox-feedback-${item.id}` });
+          notification.onclick = () => { window.focus?.(); navigate('feedback'); notification.close(); };
+        } catch { /* Browser may require a service worker; the panel badge remains available. */ }
+      }
+    }
+  }
+  function startAutoRefresh() {
+    if (autoRefreshTimer !== null || typeof window.setInterval !== 'function') return;
+    autoRefreshTimer = window.setInterval(() => { if (!shell.hidden) refreshAdmin(false, true); }, 20000);
+  }
+  updateNotificationControl();
   function authMessage(message, error = false) {
     loginStatus.textContent = message;
     loginStatus.classList.toggle('is-error', error);
   }
   function clearAdmin(message) {
     authEpoch += 1;
+    if (autoRefreshTimer !== null) window.clearInterval?.(autoRefreshTimer);
+    autoRefreshTimer = null;
+    knownFeedbackIds = null;
+    feedbackBaseline = 0;
     shell.hidden = true;
     authScreen.hidden = false;
     closeSidebar();
@@ -97,7 +149,7 @@
     document.dispatchEvent(new CustomEvent('invox:admin-clear'));
     authMessage(message || 'Entre com sua conta para continuar.');
   }
-  async function refreshAdmin(notify = false) {
+  async function refreshAdmin(notify = false, background = false) {
     if (refreshPromise) return refreshPromise;
     const epoch = authEpoch;
     refreshButton.disabled = true;
@@ -111,11 +163,18 @@
         shell.hidden = false;
         authScreen.hidden = true;
         password.value = '';
+        announceFeedbacks(state.feedbacks || []);
+        updateNotificationControl();
         window.AdminUI.lastState = state;
         document.dispatchEvent(new CustomEvent('invox:admin-state', {detail:state}));
+        startAutoRefresh();
         if (notify) toast('Painel atualizado.');
       } catch (error) {
         if (epoch !== authEpoch) return;
+        if (background && window.AdminUI.lastState && !['forbidden', 'unauthorized'].includes(error.code)) {
+          if (notificationStatus) notificationStatus.textContent = 'Sem conexão para atualizar. As mensagens carregadas foram preservadas; nova tentativa automática em instantes.';
+          return;
+        }
         clearAdmin();
         authMessage(error.code === 'forbidden' ? 'Esta conta não tem permissão de administrador.' : (error.message || 'Não foi possível validar seu acesso. Tente novamente.'), true);
         retry.hidden = false;

@@ -71,6 +71,8 @@ const ticket=(path='windows/1.1.0/upload-id/INVOX.exe')=>({path,token:'signed-up
   const {api,state}=harness();
   await assert.rejects(()=>api.adminState(),e=>e.code==='unauthorized'&&e.status===401);
   await assert.rejects(()=>api.resetAnalytics(),e=>e.code==='unauthorized'&&e.status===401);
+  await assert.rejects(()=>api.saveAnnouncement({title:'Aviso',message:'Recado'}),e=>e.code==='unauthorized'&&e.status===401);
+  await assert.rejects(()=>api.setAnnouncementActive({id:'fixture',active:false}),e=>e.code==='unauthorized'&&e.status===401);
   assert.equal(state.fetchCalls.length,0);
   state.session=sessionFixture;state.responses.push(ok({admin:{username:'fixture'}}));
   await api.adminState();assert.equal(state.fetchCalls[0].options.headers.Authorization,'Bearer access-token-fixture');

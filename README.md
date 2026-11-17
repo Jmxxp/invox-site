@@ -13,7 +13,11 @@ node scripts/verify-official.mjs
 node scripts/serve-official.mjs
 ```
 
-Os testes automatizados usam respostas simuladas. O backend também foi implantado e validado no Supabase em 17/11/2026, incluindo login, feedbacks, upload e downloads públicos ou protegidos por senha.
+As migrações aditivas `20261117193242_invox_game_feedback.sql` e `20261117194103_invox_game_announcements.sql` e a função Edge `invox-api` versão 6 já estão implantadas no projeto INVOX em 17/11/2026. O teste SQL com rollback confirmou campos e restrições de acesso. Um teste HTTPS real usando os clientes Godot passou em sete verificações: consulta do estado da plataforma e dois envios, um feedback e uma sugestão, gravados com `source=game` e contato nulo. Somente os dois registros temporários identificados foram removidos depois. Nenhum recado real foi publicado pelo teste.
+
+Os 15 arquivos de testes locais e 14 verificações adicionais de proteção usam dependências simuladas e passaram; o artefato gerado passou na verificação de 78 arquivos e 59 referências. A publicação do frontend/CDN ainda está pendente desta revisão. Login administrativo visual no navegador e download/instalação real no Android não foram repetidos neste lote.
+
+As proteções do backend incluem limite JSON de 32 KiB, prazo de 5 s para receber o corpo, prazo de 15 s nas chamadas ao Supabase, limite de requisições simultâneas por instância e controles de frequência para consultas públicas, downloads e administração. O estado público usa cache interno de 2 s em produção, invalidado por alterações administrativas; respostas e dados privados continuam sem cache no navegador. Downloads validam versão, manifesto, bucket e origem antes de emitir um link temporário. O frontend preparado restringe scripts e conexões com CSP, preservando estilos dinâmicos e o login existente. Não se trata de uma certificação contra toda invasão.
 
 Site: http://localhost:4173/invox-site/
 Painel: http://localhost:4173/invox-site/admin/

@@ -12,9 +12,17 @@ Os downloads são separados em Windows, macOS e Android. A métrica registra a l
 
 ## Feedbacks
 
-A lista traz os feedbacks reais mais recentes. Busque por nome, contato ou mensagem e use os filtros Novo/Respondido. Selecionar um item não altera a classificação. Use **Salvar anotação** ou **Marcar como respondido/novo** para persistir a mudança. Essas ações não enviam uma resposta ao contato.
+A lista traz as duzentas mensagens mais recentes do site e do jogo, identificadas como ajuda/feedback ou sugestão. Busque por nome, mensagem, tipo ou origem e combine o filtro de tipo com Novo/Tratado. Novos envios pedem apenas nome e conteúdo; contatos históricos são preservados para consulta. Selecionar um item não altera a classificação. Use **Salvar anotação** ou **Marcar como tratado/novo** para persistir a mudança. Essas ações não enviam uma resposta ao jogador.
+
+O painel consulta novidades a cada vinte segundos enquanto estiver aberto e autorizado. Novas mensagens atualizam o contador lateral; registros da carga inicial e IDs já anunciados não disparam outro aviso na mesma sessão. **Ativar notificações do navegador** pede permissão somente após o clique. Não são enviados e-mails ou mensagens a outros canais.
 
 **Atualizar** busca os dados mais recentes sem descartar anotações ou formulários em edição. **Sair** fecha a sessão local e limpa os dados carregados na interface.
+
+## Recados no jogo
+
+Na área **Recados no jogo**, informe título e mensagem e use **Publicar para todos**. A publicação cria um ID novo. A lista permite desativar ou reativar os recados; reativar o mesmo ID não força novo aviso para quem já o fechou. O jogo aberto e conectado consulta até vinte recados ativos recentes. Não há notificação para um jogo fechado. Os limites são cem caracteres no título e dois mil na mensagem.
+
+As migrações `20261117193242_invox_game_feedback.sql` e `20261117194103_invox_game_announcements.sql` e a função `invox-api` versão 6 já estão implantadas no projeto INVOX. O teste HTTPS dos clientes do jogo confirmou gravação real de feedback e sugestão sem contato; os dois registros temporários foram removidos por UUID. A publicação desta interface e o teste visual de login administrativo no navegador ainda estão pendentes desta revisão. Consulte `../supabase/README.md`.
 
 ## Acesso aos downloads
 

@@ -32,8 +32,10 @@ create table public.invox_site_settings (
 create table public.invox_feedbacks (
   id uuid primary key default gen_random_uuid(),
   name text not null check (char_length(btrim(name)) between 2 and 80),
-  contact text not null check (char_length(btrim(contact)) between 3 and 200),
+  contact text check (char_length(btrim(contact)) between 3 and 200),
   message text not null check (char_length(btrim(message)) between 10 and 2000),
+  kind text not null default 'feedback' check (kind in ('feedback', 'suggestion')),
+  source text not null default 'site' check (source in ('site', 'game')),
   status text not null default 'new' check (status in ('new', 'answered')),
   note text not null default '' check (char_length(note) <= 5000),
   created_at timestamptz not null default now(),
@@ -41,6 +43,20 @@ create table public.invox_feedbacks (
 );
 create index invox_feedbacks_recent_idx on public.invox_feedbacks (created_at desc, id desc);
 create index invox_feedbacks_status_recent_idx on public.invox_feedbacks (status, created_at desc, id desc);
+
+create table public.invox_announcements (
+  id uuid primary key default gen_random_uuid(),
+  title text not null check (char_length(btrim(title)) between 1 and 100),
+  message text not null check (char_length(btrim(message)) between 1 and 2000),
+  active boolean not null default true,
+  published_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  created_by uuid not null references auth.users(id)
+);
+create index invox_announcements_active_recent_idx on public.invox_announcements (active, published_at desc, id desc);
+alter table public.invox_announcements enable row level security;
+revoke all on table public.invox_announcements from public, anon, authenticated;
+grant all on table public.invox_announcements to service_role;
 
 create table public.invox_installers (
   platform text primary key check (platform in ('windows', 'macos', 'android')),

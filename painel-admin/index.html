@@ -2,6 +2,8 @@
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; object-src 'none'; frame-src 'none'; form-action 'none'; script-src 'self'; script-src-attr 'none'; style-src 'self'; style-src-elem 'self'; style-src-attr 'unsafe-inline'; img-src 'self'; font-src 'self'; media-src 'self'; connect-src https://wsfdwyghqqaerivyrbil.supabase.co https://wsfdwyghqqaerivyrbil.storage.supabase.co; worker-src 'none'">
+  <meta name="referrer" content="no-referrer">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="robots" content="noindex,nofollow">
   <meta name="theme-color" content="#13091f">
@@ -10,14 +12,15 @@
   <link rel="stylesheet" href="assets/vendor/fontawesome/css/fontawesome.min.css">
   <link rel="stylesheet" href="assets/vendor/fontawesome/css/solid.min.css">
   <link rel="stylesheet" href="assets/vendor/fontawesome/css/brands.min.css">
-  <link rel="stylesheet" href="styles.css?v=20261117-panel-refresh">
+  <link rel="stylesheet" href="styles.css?v=20261117-game-feedback">
   <link rel="stylesheet" href="analytics.css?v=20261117-panel-refresh">
   <script defer src="../site-oficial/shared/vendor/supabase.js"></script>
   <script defer src="../site-oficial/shared/vendor/tus.min.js"></script>
-  <script defer src="../site-oficial/shared/invox-client.js?v=20261117-panel-refresh"></script>
-  <script defer src="admin.js?v=20261117-panel-refresh"></script>
+  <script defer src="../site-oficial/shared/invox-client.js?v=20261117-game-services"></script>
+  <script defer src="admin.js?v=20261117-game-feedback"></script>
   <script defer src="analytics.js?v=20261117-panel-refresh"></script>
-  <script defer src="feedback.js?v=20261117-panel-refresh"></script>
+  <script defer src="feedback.js?v=20261117-game-feedback"></script>
+  <script defer src="announcements.js?v=20261117-game-services"></script>
   <script defer src="settings.js?v=20261117-panel-refresh"></script>
 </head>
 <body>
@@ -45,6 +48,7 @@
       <nav class="admin-nav" aria-label="Áreas do painel">
         <button class="nav-item is-active" data-panel="analytics" aria-current="page"><i class="fa-solid fa-chart-line" aria-hidden="true"></i><span>Análises</span></button>
         <button class="nav-item" data-panel="feedback"><i class="fa-solid fa-comments" aria-hidden="true"></i><span>Feedbacks</span><span class="nav-badge" id="sidebar-new-count">0</span></button>
+        <button class="nav-item" data-panel="announcements"><i class="fa-solid fa-bullhorn" aria-hidden="true"></i><span>Recados no jogo</span></button>
         <button class="nav-item" data-panel="access"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i><span>Acesso ao site</span></button>
         <button class="nav-item" data-panel="downloads"><i class="fa-solid fa-cloud-arrow-up" aria-hidden="true"></i><span>Versão e arquivos</span></button>
       </nav>
@@ -68,19 +72,21 @@
   <div class="panel-heading">
     <div>
       <h2 id="feedback-panel-title">Caixa de feedbacks</h2>
-      <p>Acompanhe as ideias e organize o que já foi respondido.</p>
+      <p>Ajuda, feedback e sugestões enviados pelo site e pelo jogo.</p>
     </div>
-    <span class="panel-caption"><i class="fa-solid fa-arrow-down-wide-short" aria-hidden="true"></i> Até 200 feedbacks mais recentes</span>
+    <span class="panel-caption"><i class="fa-solid fa-arrow-down-wide-short" aria-hidden="true"></i> Até 200 mensagens mais recentes</span>
   </div>
+  <div class="feedback-live-tools"><button type="button" id="enable-feedback-notifications" class="button button-ghost button-small">Ativar notificações do navegador</button><p id="feedback-notification-status" class="field-hint" role="status" aria-live="polite">Atualização automática a cada 20 segundos enquanto o painel estiver aberto.</p></div>
   <div class="feedback-toolbar">
     <div class="status-filters" role="group" aria-label="Filtrar feedbacks por situação">
       <button type="button" class="filter-button is-active" data-filter="all" aria-pressed="true">Todos <span id="filter-all-count">0</span></button>
       <button type="button" class="filter-button" data-filter="new" aria-pressed="false">Novos <span id="filter-new-count">0</span></button>
-      <button type="button" class="filter-button" data-filter="answered" aria-pressed="false">Respondidos <span id="filter-answered-count">0</span></button>
+      <button type="button" class="filter-button" data-filter="answered" aria-pressed="false">Tratados <span id="filter-answered-count">0</span></button>
     </div>
+    <label class="feedback-type-select" for="feedback-kind-filter"><span class="sr-only">Filtrar por tipo de mensagem</span><select id="feedback-kind-filter"><option value="all">Todos os tipos</option><option value="feedback">Ajuda / feedback</option><option value="suggestion">Sugestões</option></select></label>
     <label class="search-field" for="feedback-search">
       <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
-      <span class="sr-only">Buscar por nome, contato ou mensagem</span>
+      <span class="sr-only">Buscar por nome, mensagem, tipo ou origem</span>
       <input id="feedback-search" type="search" placeholder="Buscar feedback..." autocomplete="off">
     </label>
   </div>
@@ -90,6 +96,16 @@
   </div>
 </section>
 
+        <section id="panel-announcements" class="admin-panel" aria-labelledby="announcements-heading" hidden>
+          <div class="panel-heading"><div><h2 id="announcements-heading">Fale com quem está jogando.</h2><p>Recados ativos aparecem dentro do jogo quando ele consulta as novidades.</p></div><span class="panel-caption">Todos os jogadores · até 20 recados ativos na consulta</span></div>
+          <form id="announcement-form" class="settings-card announcement-form" aria-busy="false">
+            <div class="field-group"><label for="announcement-title">Título do recado</label><input id="announcement-title" name="title" type="text" required maxlength="200" placeholder="Ex.: Novidades no INVOX"></div>
+            <div class="field-group"><label for="announcement-message">Mensagem para os jogadores</label><textarea id="announcement-message" name="message" rows="5" required maxlength="4000" placeholder="Escreva o aviso que aparecerá no jogo..."></textarea><p class="field-hint">Até 2000 caracteres. O jogador pode fechar o recado em OK ou X.</p></div>
+            <div class="settings-actions"><button type="submit" id="announcement-publish" class="button button-primary"><i class="fa-solid fa-bullhorn" aria-hidden="true"></i>Publicar para todos</button></div>
+            <p id="announcement-status" class="field-hint" role="status" aria-live="polite"></p>
+          </form>
+          <div class="announcement-list" id="announcement-list" aria-label="Recados publicados"></div>
+        </section>
         <section id="panel-access" class="admin-panel" aria-labelledby="access-heading" hidden>
   <div class="panel-heading"><h2 id="access-heading">Acesso ao site</h2><p>Controle a liberação dos downloads do site oficial.</p></div>
   <form id="access-form" class="settings-layout">
