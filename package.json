@@ -10,28 +10,7 @@
     "dev": "node scripts/serve-official.mjs",
     "build": "node scripts/build-official.mjs",
     "test": "node scripts/test-official.mjs",
-    "dev:legacy": "next dev",
-    "build:legacy": "next build",
-    "typecheck": "tsc --noEmit",
     "verify": "node scripts/verify-official.mjs",
-    "verify:legacy": "node scripts/verify-static.mjs",
-    "predeploy": "npm test && npm run build && npm run verify",
-    "deploy": "gh-pages -d out --dotfiles"
-  },
-  "dependencies": {
-    "lucide-react": "1.31.0",
-    "next": "16.3.4",
-    "react": "19.2.6",
-    "react-dom": "19.2.6"
-  },
-  "devDependencies": {
-    "@tailwindcss/postcss": "4.2.1",
-    "@types/node": "22.19.19",
-    "@types/react": "19.2.14",
-    "@types/react-dom": "19.2.3",
-    "gh-pages": "6.3.0",
-    "postcss": "8.5.23",
-    "tailwindcss": "4.2.1",
-    "typescript": "5.9.3"
+    "check": "node scripts/test-official.mjs && node scripts/build-official.mjs && node scripts/verify-official.mjs"
   }
 }

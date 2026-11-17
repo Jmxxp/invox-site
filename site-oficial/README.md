@@ -9,7 +9,7 @@ Na raiz do repositório, execute `node scripts/serve-official.mjs`. Abra http://
 ## Arquivos principais
 
 - `index.html`, `styles.css`, `about.css`, `premium.css`: layout e conteúdo.
-- `script.js`, `integration.css`: downloads e diálogo de senha.
+- `script.js`, `downloads.css`, `integration.css`: plataformas, versões individuais dos instaladores, downloads e diálogo de senha.
 - `feedback.js`, `feedback.css`: envio real de feedback.
 - `shared/invox-client.js`: conexão pública, autenticação e chamadas ao servidor.
 - `shared/vendor/`: Supabase JS 2.119.0 fixado, licença e hash verificado.

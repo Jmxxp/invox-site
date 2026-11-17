@@ -1,4 +1,0 @@
-User-agent: *
-Allow: /invox-site/
-
-Sitemap: https://jmxxp.github.io/invox-site/sitemap.xml

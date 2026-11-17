@@ -63,16 +63,17 @@
   <link rel="stylesheet" href="assets/vendor/fontawesome/css/fontawesome.min.css">
   <link rel="stylesheet" href="assets/vendor/fontawesome/css/solid.min.css">
   <link rel="stylesheet" href="assets/vendor/fontawesome/css/brands.min.css">
-  <link rel="stylesheet" href="styles.css?v=20261117-glass">
+  <link rel="stylesheet" href="styles.css?v=20261117-platforms">
   <link rel="stylesheet" href="about.css">
   <link rel="stylesheet" href="lobby.css">
-  <link rel="stylesheet" href="premium.css?v=20261117-glass">
+  <link rel="stylesheet" href="premium.css?v=20261117-platforms">
   <link rel="stylesheet" href="feedback.css">
   <link rel="stylesheet" href="integration.css">
+  <link rel="stylesheet" href="downloads.css?v=20261117-platforms">
   <script src="config.js" defer></script>
   <script src="shared/invox-client.js" defer></script>
   <script src="analytics.js" defer></script>
-  <script src="script.js" defer></script>
+  <script src="script.js?v=20261117-platforms" defer></script>
   <script src="lobby.js" defer></script>
   <script src="effects.js" defer></script>
   <script src="feedback.js" defer></script>
@@ -103,18 +104,27 @@
         </div>
       </section>
       <section class="features wrap" id="recursos" aria-label="Recursos do INVOX">
-        <article class="feature"><i class="fa-solid fa-microphone-lines feature-icon mic" aria-hidden="true"></i><div><h2>Comandos de Voz</h2><p>Invoque itens, veículos,<br>personagens e muito mais.</p></div></article>
-        <article class="feature"><i class="fa-solid fa-infinity feature-icon infinity" aria-hidden="true"></i><div><h2>Combinações</h2><p>Junte comandos e crie<br>efeitos únicos e absurdos.</p></div></article>
-        <article class="feature"><i class="fa-solid fa-cube feature-icon cube" aria-hidden="true"></i><div><h2>Sandbox Livre</h2><p>Explore, construa e<br>experimente sem limites.</p></div></article>
-        <article class="feature"><i class="fa-solid fa-user-group feature-icon users" aria-hidden="true"></i><div><h2>Multiplayer</h2><p>Jogue com seus amigos<br>em tempo real.</p></div></article>
-        <article class="feature feature-live"><i class="fa-brands fa-tiktok feature-icon tiktok" aria-hidden="true"></i><div><h2>Integração<br><span class="live-title">TikTok LIVE <span class="live-badge">LIVE</span></span></h2><p>Interaja com sua live e leve<br>o jogo para o seu público.</p></div></article>
+        <article class="feature"><i class="fa-solid fa-microphone-lines feature-icon mic" aria-hidden="true"></i><div><h2>Comandos de Voz</h2><p>Invoque itens, veículos, personagens e muito mais.</p></div></article>
+        <article class="feature"><i class="fa-solid fa-infinity feature-icon infinity" aria-hidden="true"></i><div><h2>Combinações</h2><p>Junte comandos e crie efeitos únicos e absurdos.</p></div></article>
+        <article class="feature"><i class="fa-solid fa-cube feature-icon cube" aria-hidden="true"></i><div><h2>Sandbox Livre</h2><p>Explore, construa e experimente sem limites.</p></div></article>
+        <article class="feature"><i class="fa-solid fa-user-group feature-icon users" aria-hidden="true"></i><div><h2>Multiplayer</h2><p>Jogue com seus amigos em tempo real.</p></div></article>
+        <article class="feature feature-live"><i class="fa-brands fa-tiktok feature-icon tiktok" aria-hidden="true"></i><div><h2>TikTok LIVE <span class="live-badge" aria-hidden="true">LIVE</span></h2><p>Integre sua live e leve o jogo para o seu público.</p></div></article>
       </section>
       <section class="downloads wrap" id="download" aria-labelledby="download-title">
         <div class="download-heading"><h2 id="download-title">BAIXE O INVOX</h2></div>
         <div class="download-grid">
-          <a class="download-card download-windows" href="#" data-download="windows" aria-label="Baixar INVOX completo para Windows"><i class="fa-brands fa-windows platform-icon" aria-hidden="true"></i><span class="download-label"><strong>INVOX</strong><span>Windows (Completo)</span></span></a>
-          <a class="download-card download-macos" href="#" data-download="macos" aria-label="INVOX para macOS"><i class="fa-brands fa-apple platform-icon apple" aria-hidden="true"></i><span class="download-label"><strong>INVOX</strong><span>macOS</span></span></a>
-          <a class="download-card download-android" href="#" data-download="android" aria-label="Baixar INVOX para Android"><i class="fa-brands fa-android platform-icon android" aria-hidden="true"></i><span class="download-label"><strong>INVOX</strong><span>Android</span></span></a>
+          <article class="download-platform download-platform-windows" aria-labelledby="download-windows-title">
+            <div class="download-platform-heading"><i class="fa-brands fa-windows download-platform-icon" aria-hidden="true"></i><div><h3 id="download-windows-title">Windows</h3><p id="download-windows-version" data-platform-version="windows">Versão —</p></div></div>
+            <a class="download-card download-windows" href="#" data-download="windows" aria-describedby="download-windows-version" aria-label="Baixar INVOX completo para Windows"><i class="fa-solid fa-download platform-icon" aria-hidden="true"></i><span class="download-label"><strong>BAIXAR INVOX</strong><span>Windows (Completo)</span></span></a>
+          </article>
+          <article class="download-platform download-platform-macos" aria-labelledby="download-macos-title">
+            <div class="download-platform-heading"><i class="fa-brands fa-apple download-platform-icon" aria-hidden="true"></i><div><h3 id="download-macos-title">macOS</h3><p id="download-macos-version" data-platform-version="macos">Versão —</p></div></div>
+            <a class="download-card download-macos" href="#" data-download="macos" aria-describedby="download-macos-version" aria-label="Baixar INVOX para macOS"><i class="fa-solid fa-download platform-icon" aria-hidden="true"></i><span class="download-label"><strong>BAIXAR INVOX</strong><span>macOS</span></span></a>
+          </article>
+          <article class="download-platform download-platform-android" aria-labelledby="download-android-title">
+            <div class="download-platform-heading"><i class="fa-brands fa-android download-platform-icon" aria-hidden="true"></i><div><h3 id="download-android-title">Android</h3><p id="download-android-version" data-platform-version="android">Versão —</p></div></div>
+            <a class="download-card download-android" href="#" data-download="android" aria-describedby="download-android-version" aria-label="Baixar INVOX para Android"><i class="fa-solid fa-download platform-icon" aria-hidden="true"></i><span class="download-label"><strong>BAIXAR INVOX</strong><span>Android</span></span></a>
+          </article>
         </div>
         <div class="download-service"><p id="download-status" role="status" aria-live="polite">Consultando os instaladores...</p><button id="download-retry" type="button" hidden><i class="fa-solid fa-rotate-right" aria-hidden="true"></i>Tentar novamente</button><button id="download-lock" type="button" hidden><i class="fa-solid fa-lock" aria-hidden="true"></i>Encerrar acesso privado</button></div>
       </section>

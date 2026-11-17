@@ -17,16 +17,18 @@ function harness(){
   const ids=Object.fromEntries(['download-status','download-retry','download-password-dialog','download-password-form','download-password','download-password-status','download-password-submit','download-password-description','notice-dialog','notice-title','notice-copy'].map(id=>[id,new Node(id)]));
   const links=['windows','macos','android'].map(platform=>{const n=new Node();n.dataset.download=platform;return n;});
   const version=new Node(),downloads=[],calls=[];
-  const state={visibility:'public',version:'1.1.0',platforms:[{platform:'windows',available:true},{platform:'macos',available:false},{platform:'android',available:true}]};
+  const platformVersions=['windows','macos','android'].map(platform=>{const n=new Node();n.dataset.platformVersion=platform;return n;});
+  const state={visibility:'public',version:'1.1.0',platforms:[{platform:'windows',available:true,version:'1.1.0'},{platform:'macos',available:false},{platform:'android',available:true,version:'1.0.8'}]};
   let error=null, response={url:'https://wsfdwyghqqaerivyrbil.supabase.co/storage/v1/object/sign/invox-installers/test.exe?token=fixture',fileName:'INVOX-1.1.0.exe'};
   const api={publicState:async()=>{calls.push(['state']);if(error)throw error;return state;},download:async(platform,password='')=>{calls.push(['download',platform,password]);if(error)throw error;return response;}};
-  const document={activeElement:null,body:{append:n=>downloads.push(n)},getElementById:id=>ids[id],querySelector:()=>null,querySelectorAll:q=>q==='[data-download]'?links:q==='[data-game-version]'?[version]:q==='dialog'?[ids['notice-dialog'],ids['download-password-dialog']]:[],createElement:()=>new Node(),addEventListener(){}};
+  const document={activeElement:null,body:{append:n=>downloads.push(n)},getElementById:id=>ids[id],querySelector:()=>null,querySelectorAll:q=>q==='[data-download]'?links:q==='[data-platform-version]'?platformVersions:q==='[data-game-version]'?[version]:q==='dialog'?[ids['notice-dialog'],ids['download-password-dialog']]:[],createElement:()=>new Node(),addEventListener(){}};
   vm.runInNewContext(source,{document,window:{InvoxBackend:api},HTMLDialogElement:Node,HTMLElement:Node,Element:Node,URL});
-  return {ids,links,version,downloads,calls,state,setError:value=>error=value,setResponse:value=>response=value};
+  return {ids,links,version,platformVersions,downloads,calls,state,setError:value=>error=value,setResponse:value=>response=value};
 }
 (async()=>{
   const h=harness();await tick();
   assert.equal(h.version.textContent,'1.1.0');assert(h.links.every(link=>link.href==='#download'));
+  assert.deepEqual(h.platformVersions.map(n=>n.textContent),['Versão 1.1.0','Versão 1.1.0 · Em preparação','Versão 1.0.8'],'Cada plataforma usa a versão do próprio instalador, com indicação de preparação quando ausente');
   await h.links[0].emit('click');assert.equal(h.calls.filter(c=>c[0]==='state').length,2);assert.equal(h.downloads.length,1);assert(h.downloads[0].clicked&&h.downloads[0].removed);
   await h.links[1].emit('click');assert.equal(h.downloads.length,1);assert.match(h.ids['download-status'].textContent,/ainda não está disponível/);
   h.state.visibility='private';await h.links[0].emit('click');assert(h.ids['download-password-dialog'].open);

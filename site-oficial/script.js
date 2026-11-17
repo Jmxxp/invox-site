@@ -62,6 +62,7 @@
   });
 
   const downloadLinks = [...document.querySelectorAll('[data-download]')];
+  const platformVersions = [...document.querySelectorAll('[data-platform-version]')];
   const downloadStatus = document.getElementById('download-status');
   const retryDownload = document.getElementById('download-retry');
   const lockDownload = document.getElementById('download-lock');
@@ -119,6 +120,15 @@
       link.dataset.available = String(Boolean(item?.available));
       link.title = item?.available ? `Baixar para ${name}` : `${name}: instalador ainda não disponível`;
       link.href = '#download';
+    });
+    platformVersions.forEach(element => {
+      const item = available.get(element.dataset.platformVersion);
+      const version = typeof item?.version === 'string' && item.version.trim()
+        ? item.version.trim()
+        : (typeof state.version === 'string' ? state.version.trim() : '');
+      element.textContent = version
+        ? `Versão ${version}${item?.available ? '' : ' · Em preparação'}`
+        : 'Versão ainda não informada';
     });
     if (typeof state.version === 'string') document.querySelectorAll('[data-game-version]').forEach(element => { element.textContent = state.version; });
     const accessLabel = available.size && [...available.values()].some(item => item.available)
