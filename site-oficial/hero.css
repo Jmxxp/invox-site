@@ -48,7 +48,7 @@
 }
 .hero .lobby-stage{
   width:100%;
-  max-width:720px;
+  max-width:780px;
   margin-inline:auto;
   padding:0;
   border:0;
@@ -60,7 +60,7 @@
 }
 .hero #lobby-canvas{
   width:100%;
-  height:clamp(420px,32vw,540px);
+  height:clamp(480px,37vw,620px);
   max-width:100%;
   border:0;
   background:transparent;
@@ -136,33 +136,6 @@
 .hero-secondary>i{color:#ca79ff;font-size:12px}
 .hero-secondary:hover{color:#fff}
 .hero-secondary:focus-visible{outline:2px solid #ce7cff;outline-offset:5px}
-.hero-facts{
-  display:flex;
-  flex-wrap:wrap;
-  align-items:center;
-  gap:10px 22px;
-  margin:19px 0 0;
-  padding:0;
-  list-style:none;
-  color:#cbbbd8;
-  font-size:12px;
-  line-height:1.5;
-}
-.hero-facts>li{display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
-.hero-facts i{width:16px;color:#cc7dff;text-align:center;font-size:13px}
-.hero-interaction-hint{
-  display:flex;
-  justify-content:center;
-  align-items:center;
-  gap:8px;
-  margin:0;
-  color:#baa4cc;
-  font-size:11px;
-  line-height:1.5;
-  text-align:center;
-}
-.hero-interaction-hint>i{color:#cf8bff;font-size:12px}
-.hero-hint-touch{display:none}
 @media(min-width:761px) and (max-width:1100px){
   .hero{
     grid-template-columns:minmax(0,48fr) minmax(0,52fr);
@@ -172,7 +145,7 @@
   }
   .hero .hero-description{margin-top:18px}
   .hero .hero-description p{font-size:clamp(16px,1.9vw,20px)}
-  .hero #lobby-canvas{height:clamp(360px,39vw,430px)}
+  .hero #lobby-canvas{height:clamp(400px,44vw,480px)}
   .hero-eyebrow{margin-bottom:12px;font-size:10px;letter-spacing:.15em}
   .hero-actions{gap:12px 18px;margin-top:22px}
 }
@@ -197,13 +170,9 @@
   .hero-eyebrow{margin-bottom:12px;font-size:10px;letter-spacing:.14em}
   .hero-actions{gap:10px 18px;margin-top:22px}
   .hero-primary{min-height:50px;padding:12px 20px}
-  .hero-facts{gap:9px 18px;margin-top:16px}
-  .hero-interaction-hint{font-size:10px}
 }
 @media(hover:none),(pointer:coarse){
   .hero-primary:hover{transform:none;filter:none}
-  .hero-hint-pointer{display:none}
-  .hero-hint-touch{display:inline}
 }
 @media(prefers-reduced-motion:reduce){
   .hero-primary,.hero-secondary{transition:none}
