@@ -13,7 +13,7 @@ node scripts/verify-official.mjs
 node scripts/serve-official.mjs
 ```
 
-Os testes de integração usam respostas simuladas e não enviam dados ao projeto real. A validação do banco e da implantação deve ser concluída no Supabase autorizado.
+Os testes automatizados usam respostas simuladas. O backend também foi implantado e validado no Supabase em 17/11/2026, incluindo login, feedbacks, upload e downloads públicos ou protegidos por senha.
 
 Site: http://localhost:4173/invox-site/
 Painel: http://localhost:4173/invox-site/admin/
@@ -24,7 +24,7 @@ Painel: http://localhost:4173/invox-site/admin/
 
 A configuração pública está em `site-oficial/shared/invox-client.js`. A chave publishable pode estar no navegador; chaves secretas e senhas não devem entrar no repositório.
 
-Feedbacks, acesso e instaladores passam pela função `invox-api`. O painel exige autenticação e permissão administrativa no servidor. Consulte [supabase/README.md](supabase/README.md) para implantar o banco e a função.
+Feedbacks, acesso e instaladores passam pela função `invox-api`, já publicada. O painel exige autenticação e permissão administrativa no servidor. Consulte [supabase/README.md](supabase/README.md) para detalhes da implantação e migrações.
 
 Os instaladores ficam em bucket privado. Mesmo em modo público, o servidor gera URLs de download válidas por 60 segundos. Em modo privado, verifica a senha antes de gerar a URL. Uma URL já emitida continua válida até expirar.
 

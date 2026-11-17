@@ -1,11 +1,13 @@
 # Backend do INVOX
 
-Projeto alvo: `wsfdwyghqqaerivyrbil`. `schema.sql` é um snapshot de instalação, sem senhas, usuários de exemplo ou dados fictícios. A configuração inicial usa versão **1.1.0**, acesso público e nenhum instalador publicado.
+Projeto ativo: `wsfdwyghqqaerivyrbil`. Banco, bucket privado e função `invox-api` implantados em **17/11/2026**. O administrador `jmxxp` está cadastrado no Supabase Auth e autorizado no servidor. A configuração atual usa versão **1.1.0**, acesso público e aguarda os instaladores reais.
 
-## Instalação
+A migração `20261117121558_invox_backend_init.sql` está registrada como aplicada no projeto. `schema.sql` preserva o snapshot inicial sem credenciais; em um banco existente, use apenas migrações pendentes.
+
+## Instalação em um banco vazio
 
 1. Confirme acesso administrativo ao projeto alvo e inspecione tabelas, funções e políticas existentes. O snapshot cria recursos novos com prefixo `invox_`; em caso de colisão, reconcilie a estrutura antes de aplicar.
-2. Aplique `schema.sql` como uma única transação usando a conexão administrativa do Supabase.
+2. Aplique a migração inicial como uma única transação usando a conexão administrativa do Supabase e registre seu histórico.
 3. Crie a conta do administrador pelo Supabase Auth no servidor. Associe o `user_id` real, o e-mail interno e o nome de usuário escolhido a `public.invox_admins`. Nenhuma conta recebe acesso por ser a primeira a entrar.
 4. Publique a Edge Function `invox-api` e mantenha a chave administrativa somente nos segredos do servidor. O navegador usa apenas a chave publicável.
 5. Valide o acesso autenticado, envie um feedback de teste e publique os instaladores reais pelo painel. Confira os advisors de segurança e desempenho após aplicar o esquema.
@@ -27,6 +29,8 @@ A publicação confere o manifesto contra `invox_uploads`: administrador, plataf
 
 As funções usam `SECURITY INVOKER`, `search_path` vazio e permissão de execução exclusiva de `service_role`. Nenhuma função privilegiada é exposta aos visitantes.
 
-## Verificação pendente
+## Verificação realizada
 
-O snapshot passou em um PostgreSQL isolado via PGlite: compilação de DDL/PLpgSQL, RLS, permissões, restrições de senha, publicação atômica e limites de tentativas. Isso não substitui testes no Supabase. A aplicação e os testes contra o projeto alvo dependem da autorização dessa conexão; não considere o backend publicado apenas porque estes arquivos existem.
+Além dos testes isolados, a implantação real passou em login, autorização administrativa, CORS de `http://127.0.0.1:5500`, envio e classificação de feedback, upload, publicação de versão, download público e download privado por senha. O arquivo e o feedback temporários foram removidos.
+
+Os advisors confirmaram seis tabelas com RLS, ausência de permissões diretas para visitantes, RPCs restritas ao servidor e bucket privado. Há um aviso de [proteção contra senhas vazadas desativada](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection); a disponibilidade dessa opção depende da configuração e do plano do projeto.

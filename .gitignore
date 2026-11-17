@@ -33,3 +33,7 @@ Thumbs.db
 *.aab
 *.exe
 *.pck
+
+# Estado local da CLI do Supabase.
+/supabase/.temp/
+/supabase/.branches/
