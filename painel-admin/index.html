@@ -11,9 +11,11 @@
   <link rel="stylesheet" href="assets/vendor/fontawesome/css/solid.min.css">
   <link rel="stylesheet" href="assets/vendor/fontawesome/css/brands.min.css">
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="analytics.css">
   <script defer src="../site-oficial/shared/vendor/supabase.js"></script>
   <script defer src="../site-oficial/shared/invox-client.js"></script>
   <script defer src="admin.js"></script>
+  <script defer src="analytics.js"></script>
   <script defer src="feedback.js"></script>
   <script defer src="settings.js"></script>
 </head>
@@ -37,10 +39,11 @@
   <div class="admin-shell" id="admin-shell" hidden>
     <div class="sidebar-backdrop" id="sidebar-backdrop" hidden></div>
     <aside class="admin-sidebar" id="admin-sidebar" aria-label="Navegação administrativa">
-      <a class="admin-brand" href="#feedback" aria-label="INVOX — Painel administrativo"><span class="admin-brand-logo"><img src="assets/brand-wordmark.png" alt="INVOX"></span><span class="admin-brand-badge">ADMIN</span></a>
+      <a class="admin-brand" href="#analytics" aria-label="INVOX — Painel administrativo"><span class="admin-brand-logo"><img src="assets/brand-wordmark.png" alt="INVOX"></span><span class="admin-brand-badge">ADMIN</span></a>
       <p class="sidebar-label">GERENCIAR</p>
       <nav class="admin-nav" aria-label="Áreas do painel">
-        <button class="nav-item is-active" data-panel="feedback" aria-current="page"><i class="fa-solid fa-comments" aria-hidden="true"></i><span>Feedbacks</span><span class="nav-badge" id="sidebar-new-count">0</span></button>
+        <button class="nav-item is-active" data-panel="analytics" aria-current="page"><i class="fa-solid fa-chart-line" aria-hidden="true"></i><span>Análises</span></button>
+        <button class="nav-item" data-panel="feedback"><i class="fa-solid fa-comments" aria-hidden="true"></i><span>Feedbacks</span><span class="nav-badge" id="sidebar-new-count">0</span></button>
         <button class="nav-item" data-panel="access"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i><span>Acesso ao site</span></button>
         <button class="nav-item" data-panel="downloads"><i class="fa-solid fa-cloud-arrow-up" aria-hidden="true"></i><span>Versão e arquivos</span></button>
       </nav>
@@ -50,8 +53,15 @@
       <header class="admin-topbar"><button type="button" id="sidebar-toggle" class="mobile-menu" aria-controls="admin-sidebar" aria-expanded="false" aria-label="Abrir navegação"><i class="fa-solid fa-bars" aria-hidden="true"></i></button><div class="topbar-breadcrumb">Painel <span>/</span> <strong id="breadcrumb-current">Feedbacks</strong></div><span class="topbar-state"><span aria-hidden="true"></span>Supabase conectado</span><button type="button" class="button button-ghost button-small" id="admin-signout">Sair</button></header>
       <div class="admin-content">
         <div class="page-heading"><div><p class="eyebrow">CENTRAL DE CONTROLE</p><h1 id="page-title">Feedbacks da comunidade</h1><p id="page-description">Organize as ideias que podem virar o próximo absurdo.</p></div><button type="button" id="refresh-admin" class="button button-ghost"><i class="fa-solid fa-arrows-rotate" aria-hidden="true"></i>Atualizar</button></div>
-        <div class="stats-grid" aria-label="Resumo do painel"><article class="stat-card"><i class="fa-solid fa-inbox" aria-hidden="true"></i><div><p class="stat-label">Novos feedbacks</p><strong id="stat-new">0</strong></div></article><article class="stat-card"><i class="fa-solid fa-circle-check" aria-hidden="true"></i><div><p class="stat-label">Respondidos</p><strong id="stat-answered">0</strong></div></article><article class="stat-card"><i class="fa-solid fa-cube" aria-hidden="true"></i><div><p class="stat-label">Versão publicada</p><strong id="summary-version">—</strong></div></article></div>
-        <section class="admin-panel" id="panel-feedback" aria-labelledby="feedback-panel-title">
+        <div class="stats-grid" id="community-summary" aria-label="Resumo do painel" hidden><article class="stat-card"><i class="fa-solid fa-inbox" aria-hidden="true"></i><div><p class="stat-label">Novos feedbacks</p><strong id="stat-new">0</strong></div></article><article class="stat-card"><i class="fa-solid fa-circle-check" aria-hidden="true"></i><div><p class="stat-label">Respondidos</p><strong id="stat-answered">0</strong></div></article><article class="stat-card"><i class="fa-solid fa-cube" aria-hidden="true"></i><div><p class="stat-label">Versão publicada</p><strong id="summary-version">—</strong></div></article></div>
+        <section class="admin-panel analytics-panel" id="panel-analytics" aria-labelledby="analytics-title" aria-busy="false">
+          <div class="analytics-toolbar"><div><p class="eyebrow">VISÃO GERAL DO SITE</p><h2 id="analytics-title">Cada ideia começa com uma visita.</h2><p class="analytics-range" id="analytics-range">Horário de Brasília</p></div><div class="analytics-periods" role="group" aria-label="Período das análises"><button type="button" data-period="day" aria-pressed="false">Hoje</button><button type="button" data-period="week" class="is-active" aria-pressed="true">7 dias</button><button type="button" data-period="month" aria-pressed="false">30 dias</button><button type="button" data-period="year" aria-pressed="false">12 meses</button></div></div>
+          <div class="analytics-metrics"><article class="analytics-metric"><span class="metric-symbol"><i class="fa-solid fa-eye" aria-hidden="true"></i></span><div><p>Visualizações no período</p><strong id="analytics-views">—</strong><small id="analytics-all-views">Aguardando dados do servidor</small></div></article><article class="analytics-metric"><span class="metric-symbol metric-symbol-download"><i class="fa-solid fa-download" aria-hidden="true"></i></span><div><p>Downloads iniciados</p><strong id="analytics-downloads">—</strong><small id="analytics-all-downloads">Aguardando dados do servidor</small></div></article></div>
+          <div class="analytics-feedback"><p id="analytics-status" role="status" aria-live="polite">Entre no painel para carregar as análises.</p><button type="button" class="button button-ghost button-small" id="analytics-retry" hidden><i class="fa-solid fa-arrows-rotate" aria-hidden="true"></i>Tentar novamente</button></div>
+          <div class="analytics-charts"><article class="analytics-card analytics-views-card"><div class="analytics-card-heading"><div><p class="eyebrow">VISUALIZAÇÕES</p><h3>Movimento do site</h3></div><span class="analytics-legend"><span aria-hidden="true"></span>Páginas vistas</span></div><div class="analytics-chart" id="analytics-views-chart" aria-label="Gráfico de visualizações do site"><div class="analytics-chart-placeholder">Os dados do gráfico aparecerão aqui.</div></div><p class="analytics-chart-note" id="analytics-chart-note">Escolha um período para acompanhar os acessos.</p><details class="analytics-data"><summary>Ver dados do gráfico</summary><div class="analytics-table-scroll"><table><caption class="sr-only">Visualizações e downloads por intervalo</caption><thead><tr><th scope="col">Intervalo</th><th scope="col">Visualizações</th><th scope="col">Downloads</th></tr></thead><tbody id="analytics-table-body"></tbody></table></div></details></article><article class="analytics-card analytics-platforms-card"><div class="analytics-card-heading"><div><p class="eyebrow">DOWNLOADS</p><h3>Por plataforma</h3></div><i class="fa-solid fa-arrow-down-to-bracket" aria-hidden="true"></i></div><div id="analytics-platforms" class="analytics-platforms"></div><p class="analytics-platform-note" id="analytics-platform-note">Os downloads serão separados entre Windows, macOS e Android.</p></article></div>
+          <p class="analytics-footnote" id="analytics-started">A contagem começa com a ativação das análises.</p><p class="analytics-footnote">Downloads iniciados representam links liberados pelo servidor. A conclusão do arquivo no dispositivo não é confirmada.</p>
+        </section>
+        <section class="admin-panel" id="panel-feedback" aria-labelledby="feedback-panel-title" hidden>
   <div class="panel-heading">
     <div>
       <h2 id="feedback-panel-title">Caixa de feedbacks</h2>

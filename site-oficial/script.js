@@ -64,6 +64,7 @@
   const downloadLinks = [...document.querySelectorAll('[data-download]')];
   const downloadStatus = document.getElementById('download-status');
   const retryDownload = document.getElementById('download-retry');
+  const lockDownload = document.getElementById('download-lock');
   const passwordDialog = document.getElementById('download-password-dialog');
   const passwordForm = document.getElementById('download-password-form');
   const passwordInput = document.getElementById('download-password');
@@ -72,10 +73,18 @@
   let downloadBusy = false;
   let pendingDownload = null;
   let attempt = 0;
+  let lastVisibility = null;
 
   function backend() {
     if (!window.InvoxBackend) throw Object.assign(new Error(), { code: 'offline' });
     return window.InvoxBackend;
+  }
+  function hasDownloadSession() {
+    try { return Boolean(window.InvoxBackend?.hasDownloadSession?.()); }
+    catch { return false; }
+  }
+  function updateDownloadSession() {
+    if (lockDownload) lockDownload.hidden = lastVisibility !== 'private' || !hasDownloadSession();
   }
   function errorCopy(error) {
     return ({
@@ -90,6 +99,7 @@
     downloadBusy = value;
     downloadLinks.forEach(link => link.setAttribute('aria-busy', String(value)));
     if (retryDownload) retryDownload.disabled = value;
+    if (lockDownload) lockDownload.disabled = value;
   }
   function showDownloadStatus(message, error = false) {
     if (downloadStatus) {
@@ -100,6 +110,8 @@
   }
   async function refreshAvailability() {
     const state = await backend().publicState();
+    lastVisibility = state.visibility;
+    updateDownloadSession();
     const available = new Map((state.platforms || []).map(item => [item.platform, item]));
     downloadLinks.forEach(link => {
       const item = available.get(link.dataset.download);
@@ -110,7 +122,7 @@
     });
     if (typeof state.version === 'string') document.querySelectorAll('[data-game-version]').forEach(element => { element.textContent = state.version; });
     const accessLabel = available.size && [...available.values()].some(item => item.available)
-      ? (state.visibility === 'private' ? 'Acesso por senha' : 'Download liberado')
+      ? (state.visibility === 'private' ? (hasDownloadSession() ? 'Acesso privado liberado neste navegador' : 'Acesso por senha') : 'Download liberado')
       : 'Instaladores em preparação';
     showDownloadStatus(`Versão ${state.version || '1.1.0'} · ${accessLabel}`);
     return state;
@@ -126,6 +138,7 @@
     link.click();
     link.remove();
     showDownloadStatus('Download autorizado. Seu navegador iniciará o arquivo.');
+    updateDownloadSession();
   }
   function askPassword(platform, trigger) {
     pendingDownload = { platform, trigger };
@@ -147,9 +160,10 @@
       try {
         const state = await refreshAvailability();
         if (!state.platforms?.some(item => item.platform === platform && item.available)) throw Object.assign(new Error(), { code: 'unavailable' });
-        if (state.visibility === 'private') askPassword(platform, link);
+        if (state.visibility === 'private' && !hasDownloadSession()) askPassword(platform, link);
         else startDownload(await backend().download(platform));
       } catch (error) {
+        updateDownloadSession();
         if (error?.code === 'password_required') askPassword(platform, link);
         else showDownloadStatus(errorCopy(error), true);
       } finally { setDownloadBusy(false); }
@@ -199,6 +213,23 @@
     finally { setDownloadBusy(false); }
   }
   retryDownload?.addEventListener('click', retryAvailability);
+  lockDownload?.addEventListener('click', async () => {
+    if (downloadBusy) return;
+    setDownloadBusy(true);
+    showDownloadStatus('Encerrando acesso privado...');
+    try {
+      await backend().lockDownloads();
+      showDownloadStatus('Acesso privado encerrado neste navegador.');
+    } catch {
+      showDownloadStatus('Acesso encerrado neste navegador. Sem conexão para confirmar no servidor.', true);
+    } finally {
+      updateDownloadSession();
+      setDownloadBusy(false);
+    }
+  });
+  window.addEventListener?.('storage', updateDownloadSession);
+  window.addEventListener?.('invox:download-session', updateDownloadSession);
+  document.addEventListener('invox:download-session', updateDownloadSession);
   retryAvailability();
 
   document.querySelectorAll("[data-open-dialog]").forEach((trigger) => {

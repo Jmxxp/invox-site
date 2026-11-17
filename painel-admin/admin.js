@@ -1,6 +1,7 @@
 (() => {
   'use strict';
   const pages = {
+    analytics: ['O INVOX em números', 'Acompanhe as visualizações do site e os downloads por plataforma.', 'Análises'],
     feedback: ['Feedbacks da comunidade', 'Organize as ideias que podem virar o próximo absurdo.', 'Feedbacks'],
     access: ['Acesso ao site', 'Prepare a visibilidade e o acesso da próxima publicação.', 'Acesso ao site'],
     downloads: ['Versão e arquivos', 'Organize os instaladores e as novidades da próxima versão.', 'Versão e arquivos']
@@ -17,7 +18,7 @@
     if (restoreFocus) toggle.focus();
   }
   function navigate(key, updateHash = true) {
-    if (!Object.prototype.hasOwnProperty.call(pages, key)) key = 'feedback';
+    if (!Object.prototype.hasOwnProperty.call(pages, key)) key = 'analytics';
     for (const panel of document.querySelectorAll('.admin-panel')) panel.hidden = panel.id !== `panel-${key}`;
     for (const button of document.querySelectorAll('.nav-item[data-panel]')) {
       const active = button.dataset.panel === key;
@@ -29,8 +30,11 @@
     document.querySelector('#page-description').textContent = pages[key][1];
     document.querySelector('#breadcrumb-current').textContent = pages[key][2];
     document.title = `INVOX Admin — ${pages[key][2]}`;
+    const communitySummary = document.getElementById('community-summary');
+    if (communitySummary) communitySummary.hidden = key === 'analytics';
     closeSidebar(document.body.classList.contains('sidebar-open'));
     if (updateHash && location.hash !== `#${key}`) location.hash = key;
+    document.dispatchEvent(new CustomEvent('invox:panel-change', { detail: { panel: key } }));
   }
   function toast(message, tone = 'success') {
     const element = document.querySelector('#admin-toast');

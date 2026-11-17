@@ -4,6 +4,12 @@ O painel usa o mesmo Supabase do site oficial e exige o usuário e a senha cadas
 
 Na publicação, o endereço é `/admin/`. Para desenvolver, sirva a raiz do repositório por HTTP e abra `/painel-admin/`; abrir o HTML com `file://` não permite autenticação. Os recursos compartilhados ficam em `site-oficial/shared/` e o empacotamento ajusta os caminhos publicados.
 
+## Análises
+
+A área inicial exibe visualizações do site e downloads iniciados. Os filtros mostram Hoje (por hora), 7 dias, 30 dias e 12 meses, com intervalos no horário de Brasília. O gráfico permite consultar pontos pelo mouse ou teclado, e a tabela abaixo apresenta os valores completos.
+
+Os downloads são separados em Windows, macOS e Android. A métrica registra a liberação do link pelo servidor; a conclusão da transferência no dispositivo não é confirmada. A contagem começa na ativação das análises e não reconstrói acessos anteriores. Acessos locais de desenvolvimento ficam fora das visualizações. Use **Atualizar** para consultar novamente.
+
 ## Feedbacks
 
 A lista traz os feedbacks reais mais recentes. Busque por nome, contato ou mensagem e use os filtros Novo/Respondido. Selecionar um item não altera a classificação. Use **Salvar anotação** ou **Marcar como respondido/novo** para persistir a mudança. Essas ações não enviam uma resposta ao contato.

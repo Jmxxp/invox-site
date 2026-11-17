@@ -7,6 +7,7 @@ const PLATFORMS = ['windows', 'macos', 'android'];
 const EXTENSIONS = { windows: ['exe', 'msi', 'zip'], macos: ['dmg', 'pkg', 'zip'], android: ['apk'] };
 const VERSION = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*)?(?:\+[0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*)?$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const DOWNLOAD_TOKEN = /^[a-f0-9]{64}$/;
 const SETTINGS_COLUMNS = 'visibility,download_password_hash,version,release_notes,updated_at';
 const INSTALLER_COLUMNS = 'platform,path,file_name,size,version,updated_at';
 const ADMIN_COLUMNS = 'email,username,user_id,enabled';
@@ -26,6 +27,10 @@ function unbase64url(value) {
   if (!/^[A-Za-z0-9_-]+$/.test(value)) throw unavailable();
   try { return Uint8Array.from(atob(value.replaceAll('-', '+').replaceAll('_', '/')), character => character.charCodeAt(0)); }
   catch { throw unavailable(); }
+}
+async function sha256(value, cryptography) {
+  const bytes = new Uint8Array(await cryptography.subtle.digest('SHA-256', new TextEncoder().encode(value)));
+  return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
 }
 
 export async function passwordHash(password, cryptography = globalThis.crypto) {
@@ -132,6 +137,21 @@ export function createHandler(dependencies) {
     return settings;
   }
   async function installers() { return resultData(await service.from('invox_installers').select(INSTALLER_COLUMNS)); }
+  async function recordAnalytics(kind, eventId = null, platform = null) {
+    const result = await service.rpc('invox_record_analytics', { p_kind: kind, p_event_id: eventId, p_platform: platform });
+    if (result.error || typeof result.data !== 'boolean') throw unavailable();
+    return result.data;
+  }
+  async function trackView(request, body) {
+    if (typeof body.eventId !== 'string' || !UUID.test(body.eventId)) throw invalidInput();
+    await rateLimit(request, 'page_view', 60, 60);
+    return { recorded: await recordAnalytics('page_view', body.eventId) };
+  }
+  async function analytics(body) {
+    const period = body.period === undefined ? 'week' : body.period;
+    if (!['day', 'week', 'month', 'year'].includes(period)) throw invalidInput();
+    return resultData(await service.rpc('invox_analytics_report', { p_period: period }));
+  }
   async function lookupAdmin(user) {
     if (!user?.id || typeof user.email !== 'string' || !user.email_confirmed_at) throw fault('unauthorized', 'Entre com uma conta administrativa autorizada.', 401);
     const result = await service.from('invox_admins').select(ADMIN_COLUMNS).eq('user_id', user.id).eq('enabled', true).maybeSingle();
@@ -180,18 +200,52 @@ export function createHandler(dependencies) {
   }
   async function download(request, body) {
     if (!PLATFORMS.includes(body.platform)) throw invalidInput();
+    if (body.accessToken !== undefined && (typeof body.accessToken !== 'string' || body.accessToken.length > 64)) throw invalidInput();
     const settings = await getSettings();
+    let accessSession = null;
+    let passwordFingerprint = null;
     if (settings.visibility === 'private') {
       await rateLimit(request, 'private_download', 900, 10);
-      if (typeof body.password !== 'string' || body.password.length === 0) throw fault('password_required', 'Informe a senha de acesso.', 401);
-      if (body.password.length > 128 || !await passwordMatches(body.password, settings.download_password_hash, cryptography)) throw fault('invalid_password', 'Senha de acesso incorreta.', 403);
+      if (typeof settings.download_password_hash !== 'string') throw unavailable();
+      passwordFingerprint = await sha256(settings.download_password_hash, cryptography);
+      if (typeof body.accessToken === 'string' && DOWNLOAD_TOKEN.test(body.accessToken)) {
+        const tokenHash = await sha256(body.accessToken, cryptography);
+        const result = await service.from('invox_download_sessions').select('password_fingerprint,expires_at').eq('token_hash', tokenHash).maybeSingle();
+        if (result.error) throw unavailable();
+        const expiry = Date.parse(result.data?.expires_at);
+        if (result.data?.password_fingerprint === passwordFingerprint && Number.isFinite(expiry) && expiry > Date.parse(now())) {
+          accessSession = { token: body.accessToken, expiresAt: result.data.expires_at };
+        }
+      }
+      if (!accessSession) {
+        if (typeof body.password !== 'string' || body.password.length === 0) throw fault('password_required', 'Informe a senha de acesso.', 401);
+        if (body.password.length > 128 || !await passwordMatches(body.password, settings.download_password_hash, cryptography)) throw fault('invalid_password', 'Senha de acesso incorreta.', 403);
+      }
     }
     const installer = await service.from('invox_installers').select(INSTALLER_COLUMNS).eq('platform', body.platform).maybeSingle();
     if (installer.error) throw unavailable();
     if (!installer.data) throw fault('unavailable', 'Este instalador ainda não está disponível.', 404);
     const data = resultData(await service.storage.from(BUCKET).createSignedUrl(installer.data.path, 60, { download: installer.data.file_name }));
     if (!data.signedUrl) throw unavailable();
-    return { url: data.signedUrl, fileName: installer.data.file_name, expiresIn: 60 };
+    if (settings.visibility === 'private' && !accessSession) {
+      const token = Array.from(cryptography.getRandomValues(new Uint8Array(32)), byte => byte.toString(16).padStart(2, '0')).join('');
+      const expiresAt = resultData(await service.rpc('invox_create_download_session', {
+        p_token_hash: await sha256(token, cryptography), p_password_fingerprint: passwordFingerprint
+      }));
+      if (typeof expiresAt !== 'string' || !Number.isFinite(Date.parse(expiresAt)) || Date.parse(expiresAt) <= Date.parse(now())) throw unavailable();
+      accessSession = { token, expiresAt };
+    }
+    if (!await recordAnalytics('download', null, body.platform)) throw unavailable();
+    return { url: data.signedUrl, fileName: installer.data.file_name, expiresIn: 60, ...(accessSession ? { accessSession } : {}) };
+  }
+  async function logoutDownload(request, body) {
+    if (body.accessToken === undefined || body.accessToken === '') return { cleared: true };
+    if (typeof body.accessToken !== 'string' || body.accessToken.length > 64) throw invalidInput();
+    if (!DOWNLOAD_TOKEN.test(body.accessToken)) return { cleared: true };
+    await rateLimit(request, 'download_logout', 60, 60);
+    const result = await service.from('invox_download_sessions').delete().eq('token_hash', await sha256(body.accessToken, cryptography));
+    if (result.error) throw unavailable();
+    return { cleared: true };
   }
   async function feedback(request, body) {
     await rateLimit(request, 'feedback', 3600, 5);
@@ -263,14 +317,17 @@ export function createHandler(dependencies) {
       const body = await readBody(request);
       switch (body.action) {
         case 'state': return json(await publicState());
+        case 'track-view': return json(await trackView(request, body));
         case 'login': return json(await login(request, body));
         case 'download': return json(await download(request, body));
+        case 'logout-download': return json(await logoutDownload(request, body));
         case 'feedback': return json(await feedback(request, body), 201);
       }
-      if (!['admin-state', 'save-access', 'update-feedback', 'create-upload', 'save-release'].includes(body.action)) throw invalidInput();
+      if (!['admin-state', 'analytics', 'save-access', 'update-feedback', 'create-upload', 'save-release'].includes(body.action)) throw invalidInput();
       const admin = await authenticate(request);
       switch (body.action) {
         case 'admin-state': return json(await adminState(admin));
+        case 'analytics': return json(await analytics(body));
         case 'save-access': return json(await saveAccess(body));
         case 'update-feedback': return json(await updateFeedback(body));
         case 'create-upload': return json(await createUpload(body, admin));

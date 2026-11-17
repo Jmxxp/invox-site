@@ -36,18 +36,21 @@ section[id],.about-game,.features,.downloads{scroll-margin-top:0}
 .hero-wordmark{filter:drop-shadow(0 8px 18px #07011055)}
 .downloads{position:relative}
 .download-heading h2{text-shadow:0 0 28px #c057f92e,0 2px 6px #07011066}
-.download-card{--card-border:linear-gradient(115deg,#784f8f,#a666bf,#784f8f);--card-surface:linear-gradient(115deg,#25182b,#2b1c32,#25182b);background:var(--card-border);background-size:200% 100%;animation:premium-flow 10s ease-in-out infinite;clip-path:polygon(16px 0,calc(100% - 16px) 0,100% 16px,100% calc(100% - 16px),calc(100% - 16px) 100%,16px 100%,0 calc(100% - 16px),0 16px);transform:perspective(900px) rotateX(var(--tilt-x,0deg)) rotateY(var(--tilt-y,0deg));transition:transform .18s,filter .18s}
-.download-card::before{inset:1.65px;background:var(--card-surface);background-size:200% 100%;animation:premium-flow 10s ease-in-out infinite;clip-path:polygon(14.5px 0,calc(100% - 14.5px) 0,100% 14.5px,100% calc(100% - 14.5px),calc(100% - 14.5px) 100%,14.5px 100%,0 calc(100% - 14.5px),0 14.5px);box-shadow:inset 0 0 26px #b242ef1a;transition:box-shadow .18s}
-.download-card::after{inset:2px;pointer-events:none;background:radial-gradient(ellipse 220px 160px at var(--pointer-x,50%) var(--pointer-y,50%),#f8cbff30,transparent 75%),radial-gradient(circle at var(--entry-x,50%) var(--entry-y,50%),#df83ff24,transparent 70%);opacity:0;transform:scale(.8);transition:opacity .18s,transform .18s}
+.download-card{--card-edge:#cc37ff;--card-edge-bright:#f2c3ff;--card-base:#7600b9;--card-core:#a400d8;--card-glow:#c400ff55;--card-glow-strong:#d56bff88;--card-shine:#dfa1ff1a;--card-icon-glow:#e5a5ff99;--card-border:linear-gradient(115deg,var(--card-edge),var(--card-edge-bright),var(--card-edge));--card-surface:linear-gradient(115deg,var(--card-base),var(--card-core),var(--card-base));opacity:1;background-color:var(--card-base);background-image:var(--card-border);background-size:200% 100%;animation:premium-flow 10s ease-in-out infinite;clip-path:polygon(16px 0,calc(100% - 16px) 0,100% 16px,100% calc(100% - 16px),calc(100% - 16px) 100%,16px 100%,0 calc(100% - 16px),0 16px);transform:perspective(900px) rotateX(var(--tilt-x,0deg)) rotateY(var(--tilt-y,0deg));transition:transform .18s,filter .18s}
+.download-card::before{inset:1.65px;opacity:1;background-color:var(--card-base);background-image:var(--card-surface);background-size:200% 100%;animation:premium-flow 10s ease-in-out infinite;clip-path:polygon(14.5px 0,calc(100% - 14.5px) 0,100% 14.5px,100% calc(100% - 14.5px),calc(100% - 14.5px) 100%,14.5px 100%,0 calc(100% - 14.5px),0 14.5px);box-shadow:inset 0 0 30px var(--card-glow);transition:box-shadow .18s}
+.download-card::after{inset:2px;pointer-events:none;background:radial-gradient(ellipse 220px 160px at var(--pointer-x,50%) var(--pointer-y,50%),#ffffff12,transparent 75%),radial-gradient(circle at var(--entry-x,50%) var(--entry-y,50%),var(--card-shine),transparent 70%);opacity:0;transform:scale(.8);transition:opacity .18s,transform .18s}
 .download-card>*{position:relative;z-index:1}
-.download-card:hover,.download-card.is-pointer-active{--card-border:linear-gradient(115deg,#d166f5,#f2baff,#d166f5);--card-surface:linear-gradient(115deg,#8706b8,#c205d1,#8706b8);background:var(--card-border);background-size:200% 100%;transform:perspective(900px) translateY(-4px) rotateX(var(--tilt-x,0deg)) rotateY(var(--tilt-y,0deg));filter:brightness(1.04)}
-.download-card:hover::before,.download-card.is-pointer-active::before{box-shadow:inset 0 0 32px #e780ff33}
-.download-card:hover::after,.download-card.is-pointer-active::after{opacity:1;transform:scale(1)}
-.download-card .platform-icon{transition:transform .18s,filter .18s}
-.download-card:hover .platform-icon{transform:translateX(-2px);filter:drop-shadow(0 0 10px #ebaeff55)}
-.download-windows{--card-border:linear-gradient(115deg,#d166f5,#f2baff,#d166f5);--card-surface:linear-gradient(115deg,#8706b8,#c205d1,#8706b8)}
-.download-windows::before{box-shadow:inset 0 0 30px #e300ff33}
-.download-card:focus-visible{background:#fff;filter:drop-shadow(0 0 14px #ce58ff99)}
+.download-card:hover,.download-card.is-pointer-active{background-color:var(--card-base);background-image:var(--card-border);background-size:200% 100%;transform:perspective(900px) translateY(-4px) rotateX(var(--tilt-x,0deg)) rotateY(var(--tilt-y,0deg));filter:brightness(1.05) saturate(1.03)}
+.download-card:hover::before,.download-card.is-pointer-active::before{box-shadow:inset 0 0 36px var(--card-glow-strong)}
+.download-card:hover::after,.download-card.is-pointer-active::after{opacity:.45;transform:scale(1)}
+.download-card .platform-icon{color:#fff;transition:transform .18s,filter .18s}
+.download-card:hover .platform-icon{transform:translateX(-2px);filter:drop-shadow(0 0 10px var(--card-icon-glow))}
+.download-windows{--card-edge:#cc37ff;--card-edge-bright:#f2c3ff;--card-base:#7600b9;--card-core:#a400d8;--card-glow:#c400ff55;--card-glow-strong:#d56bff88;--card-shine:#dfa1ff1a;--card-icon-glow:#e5a5ff99}
+.download-macos{--card-edge:#299fff;--card-edge-bright:#c0e6ff;--card-base:#004595;--card-core:#0065c0;--card-glow:#1689ff55;--card-glow-strong:#56b4ff88;--card-shine:#86caff1a;--card-icon-glow:#a6d9ff99}
+.download-android{--card-edge:#18ec79;--card-edge-bright:#c2ffdd;--card-base:#00552c;--card-core:#00733b;--card-glow:#25bf6555;--card-glow-strong:#63e59a88;--card-shine:#8df4b31a;--card-icon-glow:#a5ffcb99}
+.download-card .download-label{color:#fff}.download-card .download-label>span{color:#fff}
+.download-card:focus-visible::before{box-shadow:inset 0 0 36px var(--card-glow-strong)}
+.download-card:focus-visible{background:#fff;filter:drop-shadow(0 0 14px var(--card-glow-strong))}
 .download-card:active{transform:translateY(0) scale(.99);transition-duration:.08s}
 .game-panel{transition:filter .3s,transform .3s}
 .game-pillar:hover,.game-mode:hover{filter:brightness(1.1);transform:translateY(-3px)}
@@ -75,8 +78,8 @@ section[id],.about-game,.features,.downloads{scroll-margin-top:0}
   .site-chrome .menu-toggle{width:33px;height:34px;border-radius:7px;background:#3c17484d}
   .site-chrome .main-nav{top:67px;margin:0;padding:12px;background:#170b27fa;gap:5px;border-radius:10px;border-color:#b14ddb66;box-shadow:0 16px 35px #05010c80}
   .site-chrome .nav-link{font-size:15px;min-height:43px;padding:10px 16px}
-  .scene{top:72px;height:500px}
-  .hero::before{top:calc(-1 * var(--chrome-height));bottom:0;background:linear-gradient(90deg,#11061fe8 0%,#130822a8 28%,#160a2b33 62%,transparent 90%);mask-image:linear-gradient(#000 0%,#000 55%,transparent 95%)}
+  .scene{top:178px;height:360px}
+  .hero::before{top:calc(-1 * var(--chrome-height));bottom:0;background:linear-gradient(90deg,#11061fe8 0%,#13082299 30%,#160a2b22 64%,transparent 92%);-webkit-mask-image:linear-gradient(#000 0%,#000 42%,transparent 69%);mask-image:linear-gradient(#000 0%,#000 42%,transparent 69%)}
   .hero-copy{top:30px}
   .game-outro .game-closing-title{font-size:clamp(20px,5.85vw,36px);line-height:1.28;max-width:560px}
   .game-outro .game-closing-title .game-closing-line{display:block}

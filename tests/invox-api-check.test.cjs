@@ -29,6 +29,8 @@ function harness(){
  const service={from:table=>new Query(table),auth:{getUser:async token=>{logs.auth.push(token);return {data:{user:controls.user},error:controls.authError?{message:'invalid token'}:null};}},rpc:async(name,args)=>{
   logs.rpc.push([name,args]);
   if(name==='invox_take_rate_limit')return {data:controls.rate,error:controls.rateError?{message:'SQL SECRET'}:null};
+  if(name==='invox_record_analytics')return {data:true,error:null};
+  if(name==='invox_create_download_session')return {data:'2026-12-16T00:00:00Z',error:null};
   if(name==='invox_publish_release'){
    Object.assign(db.invox_site_settings[0],{version:args.p_version,release_notes:args.p_release_notes});
    for(const file of args.p_files){db.invox_installers=db.invox_installers.filter(item=>item.platform!==file.platform);db.invox_installers.push({platform:file.platform,path:file.path,file_name:file.fileName,size:file.size,version:args.p_version});}

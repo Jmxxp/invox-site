@@ -5,7 +5,11 @@ const source=fs.readFileSync('site-oficial/shared/invox-client.js','utf8');
 const project='https://wsfdwyghqqaerivyrbil.supabase.co';
 const sessionFixture={access_token:'access-token-fixture',refresh_token:'refresh-token-fixture'};
 const checks=[];
-function harness(){
+function storage(initial={}){
+ const values=new Map(Object.entries(initial));
+ return {getItem:key=>values.get(key)??null,setItem:(key,value)=>values.set(key,String(value)),removeItem:key=>values.delete(key)};
+}
+function harness(options={}){
  const state={session:null,fetchCalls:[],sdkCalls:[],xhrCalls:[],setSessions:[],responses:[],progress:[],xhrMode:'ok',setSessionError:null};
  const auth={
   async getSession(){return {data:{session:state.session},error:null};},
@@ -39,15 +43,17 @@ function harness(){
  const fetch=async(url,options)=>{
   state.fetchCalls.push({url,options,body:JSON.parse(options.body)});
   if(!state.responses.length)throw Error('Missing mock response');
-  const response=state.responses.shift();
+  const response=await state.responses.shift();
   if(response instanceof Error)throw response;
   if(response.badJson)return {ok:true,status:200,json:async()=>{throw Error('not JSON');}};
   return new Response(JSON.stringify(response.body),{status:response.status||200,headers:{'Content-Type':'application/json'}});
  };
  const timers=new Map();let timerId=0;
- const window={supabase:sdk,sessionStorage:{}};
+ const localStorage=options.localStorage||storage(),sessionStorage=options.sessionStorage||storage();
+ const window={supabase:sdk,localStorage,sessionStorage};
+ if(options.blockedStorage)Object.defineProperty(window,'localStorage',{get(){throw Error('Storage disabled');}});
  vm.runInNewContext(source,{window,fetch,Headers,Response,Request,URL,URLSearchParams,AbortController,File,XMLHttpRequest:XHR,crypto:require('node:crypto').webcrypto,setTimeout(fn){timers.set(++timerId,fn);return timerId;},clearTimeout(id){timers.delete(id);}});
- return {state,api:window.InvoxBackend,timers};
+ return {state,api:window.InvoxBackend,timers,localStorage,sessionStorage};
 }
 const ok=body=>({body});
 const error=(code,status=400)=>({status,body:{error:{code,message:'Mensagem amigável de teste.'}}});
@@ -134,6 +140,67 @@ const ticket=(path='windows/1.1.0/upload-id/INVOX.exe')=>({path,token:'signed-up
   assert.equal(state.xhrCalls.length,0);
   await assert.rejects(()=>api.uploadInstaller({platform:'windows',file:{},version:'1.1.0'}),e=>e.code==='invalid_file');
   checks.push('No upload after denied ticket or invalid File');
+ }
+ {
+  const {api,state}=harness();state.responses.push(ok({recorded:true}));
+  await api.trackView('11111111-1111-4111-8111-111111111111');
+  assert.equal(state.fetchCalls[0].body.action,'track-view');
+  assert.equal(state.fetchCalls[0].options.keepalive,true);
+  assert.equal(state.fetchCalls[0].options.headers.Authorization,undefined);
+  await assert.rejects(()=>api.analytics('week'),e=>e.code==='unauthorized');
+  state.session=sessionFixture;state.responses.push(ok({period:'month',series:[]}));
+  await api.analytics('month');
+  assert.equal(state.fetchCalls[1].body.action,'analytics');
+  assert.equal(state.fetchCalls[1].body.period,'month');
+  assert.equal(state.fetchCalls[1].options.headers.Authorization,'Bearer '+sessionFixture.access_token);
+  checks.push('Page view tracking is anonymous/keepalive; analytics report requires admin session');
+ }
+ {
+  const key='invox-admin-auth-v1',raw=JSON.stringify(sessionFixture);
+  const local=storage(),legacy=storage({[key]:raw});
+  const first=harness({localStorage:local,sessionStorage:legacy});
+  assert.equal(first.state.sdkCalls[0].options.auth.storage,local);
+  assert.equal(first.state.sdkCalls[0].options.auth.persistSession,true);
+  assert.equal(first.state.sdkCalls[0].options.auth.autoRefreshToken,true);
+  assert.equal(local.getItem(key),raw);assert.equal(legacy.getItem(key),null);
+  const reopened=harness({localStorage:local});
+  assert.equal(reopened.state.sdkCalls[0].options.auth.storage.getItem(key),raw);
+  const malformed=harness({sessionStorage:storage({[key]:'broken-json'})});
+  assert.equal(malformed.state.sdkCalls[0].options.auth.storage,malformed.localStorage);
+  const blocked=harness({blockedStorage:true});assert.equal(blocked.state.sdkCalls[0].options.auth.storage,blocked.sessionStorage);
+  checks.push('Admin authentication persists across browser sessions and migrates the existing session safely');
+ }
+ {
+  const saved={token:'a'.repeat(64),expiresAt:new Date(Date.now()+86400000).toISOString()};
+  const first=harness();first.state.responses.push(ok({url:project+'/storage/v1/object/sign/file',accessSession:saved}));
+  await first.api.download('windows','fixture-access-password');assert.equal(first.api.hasDownloadSession(),true);
+  const reopened=harness({localStorage:first.localStorage});assert.equal(reopened.api.hasDownloadSession(),true);
+  reopened.state.responses.push(ok({url:project+'/storage/v1/object/sign/file',accessSession:saved}));
+  await reopened.api.download('android');
+  assert.equal(reopened.state.fetchCalls[0].body.accessToken,saved.token);
+  assert.equal(reopened.state.fetchCalls[0].body.password,'');
+  assert(!first.localStorage.getItem('invox-download-access-wsfdwyghqqaerivyrbil-v1').includes('fixture-access-password'));
+  reopened.state.responses.push(ok({cleared:true}));await reopened.api.lockDownloads();
+  assert.equal(reopened.state.fetchCalls[1].body.action,'logout-download');
+  assert.equal(reopened.api.hasDownloadSession(),false);assert.equal(first.api.hasDownloadSession(),false);
+  checks.push('Private download access persists by opaque grant; logout clears all tabs without storing passwords');
+ }
+ {
+  const local=storage({'invox-download-access-wsfdwyghqqaerivyrbil-v1':JSON.stringify({token:'b'.repeat(64),expiresAt:'2000-01-01T00:00:00Z'})});
+  const expired=harness({localStorage:local});assert.equal(expired.api.hasDownloadSession(),false);
+  const h=harness();h.state.responses.push(ok({accessSession:{token:'c'.repeat(64),expiresAt:new Date(Date.now()+86400000).toISOString()}}));
+  await h.api.download('windows','fixture');h.state.responses.push(error('password_required',401));
+  await assert.rejects(()=>h.api.download('windows'),e=>e.code==='password_required');assert.equal(h.api.hasDownloadSession(),false);
+  checks.push('Expired or revoked private access prompts for a fresh password');
+ }
+ {
+  const h=harness();let finish;
+  h.state.responses.push(new Promise(resolve=>{finish=resolve;}));
+  const pending=h.api.download('windows','fixture');
+  await h.api.lockDownloads();
+  finish(ok({accessSession:{token:'d'.repeat(64),expiresAt:new Date(Date.now()+86400000).toISOString()}}));
+  await pending;assert.equal(h.api.hasDownloadSession(),false);
+  checks.push('A delayed download response cannot restore private access after logout');
  }
  console.log(JSON.stringify({result:'PASS',checks},null,2));
 })().catch(error=>{console.error(error);process.exitCode=1;});

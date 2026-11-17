@@ -2,11 +2,58 @@
   'use strict';
   const url = 'https://wsfdwyghqqaerivyrbil.supabase.co';
   const key = 'sb_publishable_JRJh2_czP8LlDXwd6E2vZg_qImQ5Gil';
+  const authStorageKey = 'invox-admin-auth-v1';
+  function authStorage() {
+    try {
+      const local = window.localStorage;
+      if (!local?.getItem || !local?.setItem) return window.sessionStorage;
+      local.setItem(authStorageKey + '.probe', '1');
+      local.removeItem(authStorageKey + '.probe');
+      const previous = window.sessionStorage?.getItem?.(authStorageKey);
+      if (previous && !local.getItem(authStorageKey)) {
+        try {
+          const session = JSON.parse(previous);
+          if (typeof session?.access_token === 'string' && typeof session?.refresh_token === 'string') local.setItem(authStorageKey, previous);
+        } catch { /* Discard a malformed legacy session without blocking login. */ }
+      }
+      if (local.getItem(authStorageKey)) window.sessionStorage?.removeItem?.(authStorageKey);
+      return local;
+    } catch { return window.sessionStorage; }
+  }
   const sdk = window.supabase?.createClient(url, key, {
-    auth: { storageKey: 'invox-admin-auth-v1', storage: window.sessionStorage, persistSession: true, autoRefreshToken: true, detectSessionInUrl: false }
+    auth: { storageKey: authStorageKey, storage: authStorage(), persistSession: true, autoRefreshToken: true, detectSessionInUrl: false }
   });
   function failure(code, message, status = 0) {
     return Object.assign(new Error(message), { code, status });
+  }
+  const downloadStorageKey = 'invox-download-access-wsfdwyghqqaerivyrbil-v1';
+  let memoryDownloadSession = null;
+  let downloadSessionEpoch = 0;
+  function validDownloadSession(value) {
+    return value && typeof value.token === 'string' && /^[a-f0-9]{64}$/.test(value.token)
+      && typeof value.expiresAt === 'string' && Date.parse(value.expiresAt) > Date.now();
+  }
+  function downloadSession() {
+    try {
+      if (!window.localStorage?.getItem) return validDownloadSession(memoryDownloadSession) ? memoryDownloadSession : null;
+      const value = JSON.parse(window.localStorage.getItem(downloadStorageKey) || 'null');
+      if (validDownloadSession(value)) return value;
+      window.localStorage.removeItem(downloadStorageKey);
+      memoryDownloadSession = null;
+      return null;
+    } catch { return validDownloadSession(memoryDownloadSession) ? memoryDownloadSession : null; }
+  }
+  function sessionChanged() {
+    if (typeof window.dispatchEvent === 'function' && typeof window.CustomEvent === 'function') window.dispatchEvent(new window.CustomEvent('invox:download-session'));
+  }
+  function storeDownloadSession(value) {
+    downloadSessionEpoch += 1;
+    memoryDownloadSession = validDownloadSession(value) ? { token: value.token, expiresAt: value.expiresAt } : null;
+    try {
+      if (memoryDownloadSession) window.localStorage?.setItem(downloadStorageKey, JSON.stringify(memoryDownloadSession));
+      else window.localStorage?.removeItem(downloadStorageKey);
+    } catch { /* Browser storage restrictions keep the grant in this tab only. */ }
+    sessionChanged();
   }
   async function request(action, body = {}, options = {}) {
     const headers = { 'Content-Type': 'application/json', apikey: key };
@@ -20,7 +67,7 @@
     try {
       const response = await fetch(`${url}/functions/v1/invox-api`, {
         method: 'POST', headers, body: JSON.stringify({ ...body, action }), signal: controller.signal,
-        cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer'
+        cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer', keepalive: action === 'track-view'
       });
       let data;
       try { data = await response.json(); } catch { throw failure('offline', 'Serviço indisponível. Tente novamente.'); }
@@ -36,7 +83,27 @@
     auth: sdk?.auth,
     request,
     publicState: () => request('state'),
-    download: (platform, password = '') => request('download', { platform, password }),
+    trackView: eventId => request('track-view', { eventId }),
+    analytics: (period = 'week') => request('analytics', { period }, { admin: true }),
+    async download(platform, password = '') {
+      const saved = downloadSession();
+      const epoch = downloadSessionEpoch;
+      try {
+        const result = await request('download', { platform, password, ...(saved ? { accessToken: saved.token } : {}) });
+        if (result.accessSession && epoch === downloadSessionEpoch) storeDownloadSession(result.accessSession);
+        return result;
+      } catch (error) {
+        if (epoch === downloadSessionEpoch && (error.code === 'password_required' || error.code === 'invalid_password')) storeDownloadSession(null);
+        throw error;
+      }
+    },
+    hasDownloadSession: () => Boolean(downloadSession()),
+    async lockDownloads() {
+      const saved = downloadSession();
+      storeDownloadSession(null);
+      if (saved) await request('logout-download', { accessToken: saved.token });
+      return { cleared: true };
+    },
     sendFeedback: data => request('feedback', data),
     adminState: () => request('admin-state', {}, { admin: true }),
     saveAccess: data => request('save-access', data, { admin: true }),
@@ -98,4 +165,7 @@
     return { platform, path: ticket.path, fileName: file.name, size: file.size };
   };
   window.InvoxBackend = api;
+  window.addEventListener?.('storage', event => {
+    if (event.key === downloadStorageKey) { downloadSessionEpoch += 1; memoryDownloadSession = null; sessionChanged(); }
+  });
 })();
