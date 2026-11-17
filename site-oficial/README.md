@@ -14,8 +14,13 @@ Na raiz do repositório, execute `node scripts/serve-official.mjs`. Abra http://
 - `shared/invox-client.js`: conexão pública, autenticação e chamadas ao servidor.
 - `shared/vendor/`: Supabase JS 2.119.0 fixado, licença e hash verificado.
 - `lobby.js`, `lobby.css`: blocos 3D e interação a cada frame durante a rolagem.
+- `modes.js`, `modes.css`, `assets/modes/`: apresentações dos cinco modos reais do jogo. Os vídeos só rodam quando visíveis; com movimento reduzido ou falha de reprodução, os cards mantêm a imagem estática.
+
+Os cards usam capturas nativas das cenas de seleção de modo do jogo, com os nomes Sandbox livre, Mata-mata, Pique-bandeira, Domínio e Parkour. A origem, o commit do jogo, os hashes e os parâmetros de exportação estão em `assets/modes/provenance.json`.
 
 Os botões não usam mais os antigos links Mediafire. O servidor confere a liberação e gera uma URL curta de download. Os arquivos reais e a senha de acesso são administrados pelo painel. Falhas de conexão bloqueiam o download; não existe fallback público.
+
+Cada botão permanece desativado até o servidor confirmar que existe instalador para a plataforma. A página reconsulta a disponibilidade ao receber foco ou voltar à aba.
 
 A configuração inicial é 1.1.0. A disponibilidade depende de publicar instaladores reais e implantar o backend conforme `../supabase/README.md`. Salvar estes arquivos não cria o banco nem publica a função.
 

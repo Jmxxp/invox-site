@@ -75,6 +75,7 @@
   let pendingDownload = null;
   let attempt = 0;
   let lastVisibility = null;
+  let availabilityReady = false;
 
   function backend() {
     if (!window.InvoxBackend) throw Object.assign(new Error(), { code: 'offline' });
@@ -86,6 +87,29 @@
   }
   function updateDownloadSession() {
     if (lockDownload) lockDownload.hidden = lastVisibility !== 'private' || !hasDownloadSession();
+  }
+  function updateDownloadControls() {
+    downloadLinks.forEach(link => {
+      const enabled = availabilityReady && link.dataset.available === 'true' && !downloadBusy;
+      link.setAttribute('aria-disabled', String(!enabled));
+      if (enabled) link.removeAttribute('tabindex');
+      else {
+        link.setAttribute('tabindex', '-1');
+        link.classList?.remove('is-pointer-active');
+      }
+    });
+  }
+  function unavailablePlatform(platform) {
+    downloadLinks.filter(link => link.dataset.download === platform).forEach(link => {
+      link.dataset.available = 'false';
+      link.title = `${platformNames[platform]}: instalador ainda não disponível`;
+    });
+    updateDownloadControls();
+  }
+  function unavailableConnection() {
+    availabilityReady = false;
+    downloadLinks.forEach(link => { link.dataset.available = 'false'; link.title = `${platformNames[link.dataset.download]}: aguardando conexão com o INVOX`; });
+    updateDownloadControls();
   }
   function errorCopy(error) {
     return ({
@@ -101,6 +125,7 @@
     downloadLinks.forEach(link => link.setAttribute('aria-busy', String(value)));
     if (retryDownload) retryDownload.disabled = value;
     if (lockDownload) lockDownload.disabled = value;
+    updateDownloadControls();
   }
   function showDownloadStatus(message, error = false) {
     if (downloadStatus) {
@@ -110,7 +135,14 @@
     if (retryDownload) retryDownload.hidden = !error;
   }
   async function refreshAvailability() {
-    const state = await backend().publicState();
+    let state;
+    try { state = await backend().publicState(); }
+    catch (error) { unavailableConnection(); throw error; }
+    if (!state || !['public', 'private'].includes(state.visibility) || !Array.isArray(state.platforms) || !state.platforms.every(item => item && typeof item.platform === 'string' && typeof item.available === 'boolean')) {
+      unavailableConnection();
+      throw Object.assign(new Error(), { code: 'offline' });
+    }
+    availabilityReady = true;
     lastVisibility = state.visibility;
     updateDownloadSession();
     const available = new Map((state.platforms || []).map(item => [item.platform, item]));
@@ -121,6 +153,7 @@
       link.title = item?.available ? `Baixar para ${name}` : `${name}: instalador ainda não disponível`;
       link.href = '#download';
     });
+    updateDownloadControls();
     platformVersions.forEach(element => {
       const item = available.get(element.dataset.platformVersion);
       const version = typeof item?.version === 'string' && item.version.trim()
@@ -159,11 +192,12 @@
   }
 
   downloadLinks.forEach(link => {
+    link.dataset.available = 'false';
     link.href = '#download';
     link.removeAttribute('target');
     link.addEventListener('click', async event => {
       event.preventDefault();
-      if (downloadBusy) return;
+      if (downloadBusy || !availabilityReady || link.dataset.available !== 'true' || link.getAttribute?.('aria-disabled') === 'true') return;
       const platform = link.dataset.download;
       setDownloadBusy(true);
       showDownloadStatus('Conferindo acesso ao download...');
@@ -173,12 +207,15 @@
         if (state.visibility === 'private' && !hasDownloadSession()) askPassword(platform, link);
         else startDownload(await backend().download(platform));
       } catch (error) {
+        if (error?.code === 'unavailable') unavailablePlatform(platform);
+        if (error?.code === 'offline') unavailableConnection();
         updateDownloadSession();
         if (error?.code === 'password_required') askPassword(platform, link);
         else showDownloadStatus(errorCopy(error), true);
       } finally { setDownloadBusy(false); }
     });
   });
+  updateDownloadControls();
 
   passwordForm?.addEventListener('submit', async event => {
     event.preventDefault();
@@ -188,6 +225,7 @@
     const enteredPassword = passwordInput.value;
     passwordInput.value = '';
     passwordSubmit.disabled = true;
+    setDownloadBusy(true);
     passwordSubmit.textContent = 'VERIFICANDO ACESSO...';
     passwordStatus.textContent = '';
     try {
@@ -197,9 +235,17 @@
       passwordDialog.close();
     } catch (error) {
       if (current !== attempt || !passwordDialog.open) return;
+      if (error?.code === 'unavailable' || error?.code === 'offline') {
+        if (error.code === 'unavailable') unavailablePlatform(selected.platform);
+        else unavailableConnection();
+        passwordDialog.close();
+        showDownloadStatus(errorCopy(error), true);
+        return;
+      }
       passwordStatus.textContent = errorCopy(error);
       passwordInput.focus();
     } finally {
+      setDownloadBusy(false);
       if (current === attempt) {
         passwordSubmit.disabled = false;
         passwordSubmit.textContent = 'LIBERAR DOWNLOAD';
@@ -231,6 +277,7 @@
       await backend().lockDownloads();
       showDownloadStatus('Acesso privado encerrado neste navegador.');
     } catch {
+      unavailableConnection();
       showDownloadStatus('Acesso encerrado neste navegador. Sem conexão para confirmar no servidor.', true);
     } finally {
       updateDownloadSession();
@@ -238,8 +285,10 @@
     }
   });
   window.addEventListener?.('storage', updateDownloadSession);
+  window.addEventListener?.('focus', () => { if (document.visibilityState !== 'hidden') return retryAvailability(); });
   window.addEventListener?.('invox:download-session', updateDownloadSession);
   document.addEventListener('invox:download-session', updateDownloadSession);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') return retryAvailability(); });
   retryAvailability();
 
   document.querySelectorAll("[data-open-dialog]").forEach((trigger) => {

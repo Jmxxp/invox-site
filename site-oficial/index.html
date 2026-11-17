@@ -63,20 +63,22 @@
   <link rel="stylesheet" href="assets/vendor/fontawesome/css/fontawesome.min.css">
   <link rel="stylesheet" href="assets/vendor/fontawesome/css/solid.min.css">
   <link rel="stylesheet" href="assets/vendor/fontawesome/css/brands.min.css">
-  <link rel="stylesheet" href="styles.css?v=20261117-navigation">
+  <link rel="stylesheet" href="styles.css?v=20261117-modes">
   <link rel="stylesheet" href="about.css">
   <link rel="stylesheet" href="lobby.css">
   <link rel="stylesheet" href="premium.css?v=20261117-centered">
   <link rel="stylesheet" href="feedback.css">
-  <link rel="stylesheet" href="integration.css">
+  <link rel="stylesheet" href="integration.css?v=20261117-availability">
   <link rel="stylesheet" href="downloads.css?v=20261117-spacing">
   <link rel="stylesheet" href="navigation.css?v=20261117-corners">
+  <link rel="stylesheet" href="modes.css?v=20261117-original-modes">
   <script src="config.js" defer></script>
   <script src="shared/invox-client.js" defer></script>
   <script src="analytics.js" defer></script>
-  <script src="script.js?v=20261117-platforms" defer></script>
+  <script src="script.js?v=20261117-availability" defer></script>
   <script src="lobby.js" defer></script>
   <script src="effects.js" defer></script>
+  <script src="modes.js?v=20261117-original-modes" defer></script>
   <script src="feedback.js" defer></script>
 </head>
 <body class="fx-enabled">
@@ -116,15 +118,15 @@
         <div class="download-grid">
           <article class="download-platform download-platform-windows" aria-labelledby="download-windows-title">
             <div class="download-platform-heading"><i class="fa-brands fa-windows download-platform-icon" aria-hidden="true"></i><div><h3 id="download-windows-title">Windows</h3><p id="download-windows-version" data-platform-version="windows">Versão —</p></div></div>
-            <a class="download-card download-windows" href="#" data-download="windows" aria-describedby="download-windows-version" aria-label="Baixar INVOX completo para Windows"><span class="download-sheen" aria-hidden="true"></span><i class="fa-brands fa-windows platform-icon" aria-hidden="true"></i><span class="download-label"><strong>INVOX</strong><span>Windows (Completo)</span></span></a>
+            <a class="download-card download-windows" href="#" data-download="windows" data-available="false" aria-disabled="true" tabindex="-1" aria-describedby="download-windows-version" aria-label="Baixar INVOX completo para Windows"><span class="download-sheen" aria-hidden="true"></span><i class="fa-brands fa-windows platform-icon" aria-hidden="true"></i><span class="download-label"><strong>INVOX</strong><span>Windows (Completo)</span></span></a>
           </article>
           <article class="download-platform download-platform-macos" aria-labelledby="download-macos-title">
             <div class="download-platform-heading"><i class="fa-brands fa-apple download-platform-icon" aria-hidden="true"></i><div><h3 id="download-macos-title">macOS</h3><p id="download-macos-version" data-platform-version="macos">Versão —</p></div></div>
-            <a class="download-card download-macos" href="#" data-download="macos" aria-describedby="download-macos-version" aria-label="Baixar INVOX para macOS"><span class="download-sheen" aria-hidden="true"></span><i class="fa-brands fa-apple platform-icon" aria-hidden="true"></i><span class="download-label"><strong>INVOX</strong><span>macOS</span></span></a>
+            <a class="download-card download-macos" href="#" data-download="macos" data-available="false" aria-disabled="true" tabindex="-1" aria-describedby="download-macos-version" aria-label="Baixar INVOX para macOS"><span class="download-sheen" aria-hidden="true"></span><i class="fa-brands fa-apple platform-icon" aria-hidden="true"></i><span class="download-label"><strong>INVOX</strong><span>macOS</span></span></a>
           </article>
           <article class="download-platform download-platform-android" aria-labelledby="download-android-title">
             <div class="download-platform-heading"><i class="fa-brands fa-android download-platform-icon" aria-hidden="true"></i><div><h3 id="download-android-title">Android</h3><p id="download-android-version" data-platform-version="android">Versão —</p></div></div>
-            <a class="download-card download-android" href="#" data-download="android" aria-describedby="download-android-version" aria-label="Baixar INVOX para Android"><span class="download-sheen" aria-hidden="true"></span><i class="fa-brands fa-android platform-icon" aria-hidden="true"></i><span class="download-label"><strong>INVOX</strong><span>Android</span></span></a>
+            <a class="download-card download-android" href="#" data-download="android" data-available="false" aria-disabled="true" tabindex="-1" aria-describedby="download-android-version" aria-label="Baixar INVOX para Android"><span class="download-sheen" aria-hidden="true"></span><i class="fa-brands fa-android platform-icon" aria-hidden="true"></i><span class="download-label"><strong>INVOX</strong><span>Android</span></span></a>
           </article>
         </div>
         <div class="download-service"><p id="download-status" role="status" aria-live="polite">Consultando os instaladores...</p><button id="download-retry" type="button" hidden><i class="fa-solid fa-rotate-right" aria-hidden="true"></i>Tentar novamente</button><button id="download-lock" type="button" hidden><i class="fa-solid fa-lock" aria-hidden="true"></i>Encerrar acesso privado</button></div>
@@ -178,9 +180,26 @@
     <p class="game-kicker">02 / MODOS DE JOGO</p>
     <h3 class="game-section-title">ESCOLHA COMO JOGAR.</h3>
     <div class="game-modes">
-      <article class="game-panel game-mode"><span class="game-mode-number">CRIAÇÃO LIVRE</span><h4>Sandbox</h4><p>Explore, crie, experimente e transforme o ambiente com liberdade, sem objetivos obrigatórios.</p></article>
-      <article class="game-panel game-mode"><span class="game-mode-number">COMPETITIVO</span><h4>Mata-mata</h4><p>Escolha seus equipamentos, enfrente outros jogadores e dispute partidas competitivas.</p></article>
-      <article class="game-panel game-mode"><span class="game-mode-number">JOGUE EM GRUPO</span><h4>Multiplayer</h4><p>Crie salas, convide seus amigos, escolha mapas e configure as regras disponíveis.</p></article>
+      <article class="game-panel game-mode" data-mode="survival">
+        <figure class="game-mode-visual"><img src="assets/modes/mode-survival.png" width="640" height="360" alt="Itens do catálogo em duas fileiras flutuantes no modo Sandbox livre." loading="lazy" decoding="async"><video class="game-mode-video" muted loop playsinline preload="none" aria-hidden="true"><source src="assets/modes/mode-survival.webm" type="video/webm"></video></figure>
+        <div class="game-mode-copy"><span class="game-mode-number">CRIAÇÃO LIVRE</span><h4>Sandbox livre</h4><p>Crie com a voz, combine elementos e explore um mundo contínuo, sem limite de rodada.</p></div>
+      </article>
+      <article class="game-panel game-mode" data-mode="deathmatch">
+        <figure class="game-mode-visual"><img src="assets/modes/mode-deathmatch.png" width="640" height="360" alt="Dois personagens do INVOX em posição de combate, com equipamentos e cores diferentes." loading="lazy" decoding="async"><video class="game-mode-video" muted loop playsinline preload="none" aria-hidden="true"><source src="assets/modes/mode-deathmatch.webm" type="video/webm"></video></figure>
+        <div class="game-mode-copy"><span class="game-mode-number">COMBATE</span><h4>Mata-mata</h4><p>Escolha seu equipamento e dispute abates em partidas solo, em dupla ou em equipe.</p></div>
+      </article>
+      <article class="game-panel game-mode" data-mode="capture_flag">
+        <figure class="game-mode-visual"><img src="assets/modes/mode-capture_flag.png" width="640" height="360" alt="Bandeiras azul e vermelha na apresentação do modo Pique-bandeira." loading="lazy" decoding="async"><video class="game-mode-video" muted loop playsinline preload="none" aria-hidden="true"><source src="assets/modes/mode-capture_flag.webm" type="video/webm"></video></figure>
+        <div class="game-mode-copy"><span class="game-mode-number">CAPTURA DE BANDEIRA</span><h4>Pique-bandeira</h4><p>Capture a bandeira adversária e proteja a sua em confrontos individuais ou por equipes.</p></div>
+      </article>
+      <article class="game-panel game-mode" data-mode="domination">
+        <figure class="game-mode-visual"><img src="assets/modes/mode-domination.png" width="640" height="360" alt="Três áreas de controle identificadas pelas letras A, B e C no modo Domínio." loading="lazy" decoding="async"><video class="game-mode-video" muted loop playsinline preload="none" aria-hidden="true"><source src="assets/modes/mode-domination.webm" type="video/webm"></video></figure>
+        <div class="game-mode-copy"><span class="game-mode-number">CONTROLE DE ÁREAS</span><h4>Domínio</h4><p>Conquiste as áreas A, B e C e mantenha o controle para somar pontos.</p></div>
+      </article>
+      <article class="game-panel game-mode" data-mode="parkour">
+        <figure class="game-mode-visual"><img src="assets/modes/mode-parkour.png" width="640" height="360" alt="Plataformas em espiral com um marcador saltando entre elas no modo Parkour." loading="lazy" decoding="async"><video class="game-mode-video" muted loop playsinline preload="none" aria-hidden="true"><source src="assets/modes/mode-parkour.webm" type="video/webm"></video></figure>
+        <div class="game-mode-copy"><span class="game-mode-number">CORRIDA DE PRECISÃO</span><h4>Parkour</h4><p>Corra, salte entre plataformas e alcance o topo em uma corrida focada em movimento, sem criações ou combate.</p></div>
+      </article>
     </div>
   </div>
 

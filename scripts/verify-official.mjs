@@ -24,8 +24,8 @@ for (const file of files) {
     const html = await fs.readFile(file, 'utf8');
     const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map(m => m[1]);
     assert.equal(ids.length, new Set(ids).size, 'IDs únicos');
-    for (const tag of html.matchAll(/<(?:script|link|img|a)\b[^>]*>/g)) {
-      for (const ref of tag[0].matchAll(/\b(?:src|href)="([^"]+)"/g)) await verifyRef(ref[1], file);
+    for (const tag of html.matchAll(/<(?:script|link|img|a|video|source)\b[^>]*>/g)) {
+      for (const ref of tag[0].matchAll(/\b(?:src|href|poster)="([^"]+)"/g)) await verifyRef(ref[1], file);
     }
     for (const attr of html.matchAll(/\b(?:for|aria-controls|aria-labelledby|aria-describedby)="([^"]+)"/g)) {
       for (const id of attr[1].split(/\s+/)) assert(ids.includes(id), `Referência acessível ausente: ${id}`);

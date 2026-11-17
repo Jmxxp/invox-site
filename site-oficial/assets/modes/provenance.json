@@ -1,0 +1,309 @@
+{
+  "schemaVersion": 1,
+  "source": {
+    "repository": "https://github.com/Jmxxp/INVOX",
+    "commit": "d96a2b6bbfcadab74b30a124a2cbfbcc5b725db4",
+    "stage": "scripts/ui/room_mode_stage.gd",
+    "files": [
+      {
+        "path": "scripts/ui/room_mode_stage.gd",
+        "sha256": "a3e75eceebe359854eff1d8bd6a69fa155f7f7b7a4e66cc35a226914ffd40d01"
+      },
+      {
+        "path": "scripts/ui/room_mode_card.gd",
+        "sha256": "d6f592fb8696906bb625d2385b4227a8325166b16090bd328eb319093c056e74"
+      },
+      {
+        "path": "scripts/game/match_mode_rules.gd",
+        "sha256": "be3cbb973c7a8a9fa8ea1ff50eb10e5b01ee1596c673311731c0bdf0bdfe6214"
+      },
+      {
+        "path": "scripts/game/model_factory.gd",
+        "sha256": "806244707f189f3c4843e9ac8afbee696493a981f3d88a271849adaa0fddcccf"
+      },
+      {
+        "path": "scripts/game/item_catalog.gd",
+        "sha256": "e338a4b451c94b9bbf794eaa82674a1ac0288b06bfd402f21a0cca1453853a71"
+      },
+      {
+        "path": "scripts/game/invox_robot.gd",
+        "sha256": "8b716785debd4dfbc8230948a3fe2cf26363e52f8e60f2bc1f1184353db6a108"
+      },
+      {
+        "path": "scripts/game/player_appearance.gd",
+        "sha256": "a531c029ac0788fbf5b01c5af748dda914c0cc5423909b74487408240dbeef7e"
+      },
+      {
+        "path": "scripts/game/flag_presentation.gd",
+        "sha256": "e8e6474dc7911767c8150dd0cca8330be1214df51dd80f8564e197a283f7d5d4"
+      },
+      {
+        "path": "scripts/game/dimensions.gd",
+        "sha256": "4d703ee8606faefc632789262f45867511cc5f8d930d059ee94d433e9313706d"
+      },
+      {
+        "path": "scripts/game/shaders/objective_flag.gdshader",
+        "sha256": "afe23dd4ac3bfbb9853301c6541c3c75bb3ded594a09b0b8b28f80cbfcc3fad8"
+      },
+      {
+        "path": "shaders/sandbox_mode_studio.gdshader",
+        "sha256": "c1d744def1276d8d4556bbf7507ca78edb0fcb407cee0530f08d438d82b4d22f"
+      }
+    ]
+  },
+  "render": {
+    "engine": "Godot Engine 4.7.2.stable.official.ed1daf0bf",
+    "engineArchive": "https://github.com/godotengine/godot-builds/releases/download/4.7.2-stable/Godot_v4.7.2-stable_win64.exe.zip",
+    "engineArchiveSha512": "83decd58fdf67b9d657958a1ae6bf1929c20785315a81effe245874cdc57acb709bf868e00778a96984338c1b29dafdb453c6847747694621c6ecf5da2259993",
+    "engineChecksumVerifiedAgainstOfficialRelease": true,
+    "renderer": "gl_compatibility / OpenGL 3.3",
+    "method": "Godot Movie Writer PNG frames from the original presentation-only stage, encoded as VP9 WebM",
+    "width": 640,
+    "height": 360,
+    "fps": 20,
+    "originalModels": true,
+    "originalCamera": true,
+    "originalLighting": true,
+    "originalMotion": true,
+    "sourceFilesModified": false,
+    "autoloadsEnabled": false,
+    "microphoneEnabled": false,
+    "audioIncluded": false,
+    "cardCaptionsBurnedIn": false,
+    "encoder": "FFmpeg 9.0.2 / libvpx-vp9",
+    "encoderCrf": 24,
+    "posterMethod": "Unmodified native first frame; matches video startup",
+    "loopNote": "No interpolation, crossfade, color changes or animation retiming. Native non-periodic secondary motions are retained."
+  },
+  "modes": [
+    {
+      "id": "survival",
+      "width": 640,
+      "height": 360,
+      "fps": 20,
+      "frames": 1110,
+      "durationSeconds": 55.5,
+      "codec": "vp9",
+      "pixelFormat": "yuv420p",
+      "audio": false,
+      "posterFrame": 0,
+      "nativeState": {
+        "actors": 0,
+        "clock": 0,
+        "flags": 0,
+        "frames": 1,
+        "gameplay": false,
+        "item_ids": [
+          "house",
+          "ufo",
+          "dragon",
+          "hoverbike",
+          "soccer_ball",
+          "pizza",
+          "tank",
+          "guitar",
+          "unicorn",
+          "airfryer",
+          "dinosaur",
+          "kart",
+          "wings",
+          "cat",
+          "spaceship",
+          "pistol",
+          "popcorn",
+          "mirror",
+          "money",
+          "bear",
+          "elephant",
+          "cannon",
+          "sword",
+          "cellphone"
+        ],
+        "items": 24,
+        "mode": "survival",
+        "ribbon_period": 55.5
+      },
+      "loopSelection": {
+        "method": "full native ribbon period",
+        "periodSeconds": 55.5
+      },
+      "assets": [
+        {
+          "file": "mode-survival.webm",
+          "bytes": 2382085,
+          "sha256": "e3c768fd8159400285e658319f2af92f2f8edc8255435dcf07f94e34c93c2628"
+        },
+        {
+          "file": "mode-survival.png",
+          "bytes": 26334,
+          "sha256": "8206162c42f4f1e68dcda88916f1591cfbade7f7423cdf7b246f63cd4b4207c4"
+        }
+      ]
+    },
+    {
+      "id": "deathmatch",
+      "width": 640,
+      "height": 360,
+      "fps": 20,
+      "frames": 212,
+      "durationSeconds": 10.6,
+      "codec": "vp9",
+      "pixelFormat": "yuv420p",
+      "audio": false,
+      "posterFrame": 0,
+      "nativeState": {
+        "actors": 2,
+        "clock": 0,
+        "flags": 0,
+        "frames": 1,
+        "gameplay": false,
+        "item_ids": [],
+        "items": 0,
+        "mode": "deathmatch",
+        "ribbon_period": 55.5
+      },
+      "loopSelection": {
+        "method": "closest unmodified frame to first frame within native 8–12 second capture",
+        "frames": 212,
+        "duration": 10.6,
+        "selectedMse": 54.12,
+        "originalTenSecondMse": 164.57
+      },
+      "assets": [
+        {
+          "file": "mode-deathmatch.webm",
+          "bytes": 278011,
+          "sha256": "d9c758267b3e586b5a7431beecf25603664dd0bd01325e45bbb4cce23357ce22"
+        },
+        {
+          "file": "mode-deathmatch.png",
+          "bytes": 15099,
+          "sha256": "a2b0f5e3c88dce6ded4fbd19d7ff756fd23c08a45c9e5af21cf5206f4551e53e"
+        }
+      ]
+    },
+    {
+      "id": "capture_flag",
+      "width": 640,
+      "height": 360,
+      "fps": 20,
+      "frames": 233,
+      "durationSeconds": 11.65,
+      "codec": "vp9",
+      "pixelFormat": "yuv420p",
+      "audio": false,
+      "posterFrame": 0,
+      "nativeState": {
+        "actors": 0,
+        "clock": 0,
+        "flags": 2,
+        "frames": 1,
+        "gameplay": false,
+        "item_ids": [],
+        "items": 0,
+        "mode": "capture_flag",
+        "ribbon_period": 55.5
+      },
+      "loopSelection": {
+        "method": "closest unmodified frame to first frame within native 8–12 second capture",
+        "frames": 233,
+        "duration": 11.65,
+        "selectedMse": 12.63,
+        "originalTenSecondMse": 171.21
+      },
+      "assets": [
+        {
+          "file": "mode-capture_flag.webm",
+          "bytes": 105893,
+          "sha256": "b18e315fc5f946cdb2fb8f63b3e82e70cb0e0a8b5bd3681173fcf3a792012b33"
+        },
+        {
+          "file": "mode-capture_flag.png",
+          "bytes": 14492,
+          "sha256": "c49e139680aa6a4bbbaf995bac0a4f4c5598b36695a1373525cff2986e934b3c"
+        }
+      ]
+    },
+    {
+      "id": "domination",
+      "width": 640,
+      "height": 360,
+      "fps": 20,
+      "frames": 180,
+      "durationSeconds": 9,
+      "codec": "vp9",
+      "pixelFormat": "yuv420p",
+      "audio": false,
+      "posterFrame": 0,
+      "nativeState": {
+        "actors": 0,
+        "clock": 0,
+        "flags": 0,
+        "frames": 1,
+        "gameplay": false,
+        "item_ids": [],
+        "items": 0,
+        "mode": "domination",
+        "ribbon_period": 55.5
+      },
+      "loopSelection": {
+        "method": "closest unmodified frame to first frame within native 8–12 second capture",
+        "frames": 180,
+        "duration": 9,
+        "selectedMse": 0.84,
+        "originalTenSecondMse": 122.77
+      },
+      "assets": [
+        {
+          "file": "mode-domination.webm",
+          "bytes": 90353,
+          "sha256": "0dfc29fdb3f0f35d5febd783471cb8bbfb0866842496dd5882328b1afb0e63ff"
+        },
+        {
+          "file": "mode-domination.png",
+          "bytes": 29368,
+          "sha256": "da3b87a1ed5a742f70072191688ccb263f2fc80f91ddfd0cdbca2726c8c1d2f2"
+        }
+      ]
+    },
+    {
+      "id": "parkour",
+      "width": 640,
+      "height": 360,
+      "fps": 20,
+      "frames": 200,
+      "durationSeconds": 10,
+      "codec": "vp9",
+      "pixelFormat": "yuv420p",
+      "audio": false,
+      "posterFrame": 0,
+      "nativeState": {
+        "actors": 0,
+        "clock": 0,
+        "flags": 0,
+        "frames": 1,
+        "gameplay": false,
+        "item_ids": [],
+        "items": 0,
+        "mode": "parkour",
+        "ribbon_period": 55.5
+      },
+      "loopSelection": {
+        "method": "full native eight-step phase period",
+        "periodSeconds": 10
+      },
+      "assets": [
+        {
+          "file": "mode-parkour.webm",
+          "bytes": 35488,
+          "sha256": "55df603440b18d3716b2d875b3635022e98820c14239e4059baba424d4a05b4b"
+        },
+        {
+          "file": "mode-parkour.png",
+          "bytes": 5211,
+          "sha256": "1ab8dc4cd1237874727fb3b6068fa24a7501ee709d8fcd1b95a5a931ae2504d5"
+        }
+      ]
+    }
+  ]
+}
