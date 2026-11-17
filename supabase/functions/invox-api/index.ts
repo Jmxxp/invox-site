@@ -214,11 +214,13 @@ export function createHandler(dependencies) {
   }
   async function adminState(admin) {
     await opportunisticCleanup(admin);
-    const [settings, installerRows, feedbackResult, storage] = await Promise.all([
+    const [settings, installerRows, feedbackResult, storage, history] = await Promise.all([
       getSettings(), installers(), service.from('invox_feedbacks').select(FEEDBACK_COLUMNS).order('created_at', { ascending: false }).order('id', { ascending: false }).limit(200),
-      multipartRpc('invox_storage_status', { p_budget_bytes: storageBudgetBytes })
+      multipartRpc('invox_storage_status', { p_budget_bytes: storageBudgetBytes }),
+      multipartRpc('invox_installer_history_list', { p_admin_id: admin.user_id, p_limit: 100 })
     ]);
-    return { admin: { username: admin.username, email: admin.email }, settings: settingsOutput(settings, uploadLimitBytes), installers: installerRows.map(installerOutput), feedbacks: resultData(feedbackResult).map(feedbackOutput), storage };
+    if (!Array.isArray(history)) throw unavailable();
+    return { admin: { username: admin.username, email: admin.email }, settings: settingsOutput(settings, uploadLimitBytes), installers: installerRows.map(installerOutput), feedbacks: resultData(feedbackResult).map(feedbackOutput), storage, history };
   }
   async function login(request, body) {
     await rateLimit(request, 'admin_login', 900, 10);
@@ -415,14 +417,20 @@ export function createHandler(dependencies) {
     if (!data.token || !data.signedUrl) throw unavailable();
     return { path, token: data.token, signedUrl: data.signedUrl };
   }
+  async function updateInstallerVersion(body, admin) {
+    if (!PLATFORMS.includes(body.platform)) throw invalidInput();
+    await multipartRpc('invox_update_installer_version', { p_admin_id: admin.user_id, p_platform: body.platform, p_version: versionValue(body.version) }, true);
+    return adminState(admin);
+  }
   async function saveRelease(body, admin) {
     const version = versionValue(body.version);
     if (typeof body.releaseNotes !== 'string' || body.releaseNotes.length > 5000 || !Array.isArray(body.files) || body.files.length > 3) throw invalidInput();
     const files = body.files.map(file => {
-      if (file?.kind !== 'multipart') return fileManifest(file, true, uploadLimitBytes);
+      const fileVersion = file?.version === undefined ? version : versionValue(file.version);
+      if (file?.kind !== 'multipart') return { ...fileManifest(file, true, uploadLimitBytes), version: fileVersion };
       const metadata = fileManifest(file, false, UPLOAD_LIMIT);
-      if (!SHA256.test(file.sha256) || versionValue(file.version) !== version) throw invalidInput();
-      return { kind: 'multipart', uploadId: uploadId(file.uploadId), ...metadata, version, sha256: file.sha256 };
+      if (!SHA256.test(file.sha256)) throw invalidInput();
+      return { kind: 'multipart', uploadId: uploadId(file.uploadId), ...metadata, version: fileVersion, sha256: file.sha256 };
     });
     if (new Set(files.map(file => file.platform)).size !== files.length) throw invalidInput();
     await Promise.all(files.map(async file => {
@@ -430,7 +438,7 @@ export function createHandler(dependencies) {
       const pending = await service.from('invox_uploads').select('path,platform,file_name,size,version,created_by').eq('path', file.path).maybeSingle();
       if (pending.error) throw unavailable();
       const row = pending.data;
-      if (!row || row.created_by !== admin.user_id || row.platform !== file.platform || row.file_name !== file.fileName || Number(row.size) !== file.size || row.version !== version) throw fault('invalid_input', 'Um instalador não corresponde ao envio autorizado. Envie o arquivo novamente.');
+      if (!row || row.created_by !== admin.user_id || row.platform !== file.platform || row.file_name !== file.fileName || Number(row.size) !== file.size) throw fault('invalid_input', 'Um instalador não corresponde ao envio autorizado. Envie o arquivo novamente.');
       const stored = await service.storage.from(BUCKET).info(file.path);
       if (stored.error || !stored.data || Number(stored.data.size) !== file.size) throw fault('invalid_input', 'Um instalador não terminou de ser enviado ou possui tamanho diferente. Envie o arquivo novamente.');
     }));
@@ -456,7 +464,7 @@ export function createHandler(dependencies) {
         case 'logout-download': return json(await logoutDownload(request, body));
         case 'feedback': return json(await feedback(request, body), 201);
       }
-      if (!['admin-state', 'analytics', 'reset-analytics', 'save-access', 'update-feedback', 'create-upload', 'save-release', 'create-multipart-upload', 'multipart-part-upload', 'confirm-multipart-part', 'finish-multipart-upload', 'preview-multipart-upload', 'cleanup-multipart-upload'].includes(body.action)) throw invalidInput();
+      if (!['admin-state', 'analytics', 'reset-analytics', 'save-access', 'update-feedback', 'create-upload', 'save-release', 'update-installer-version', 'create-multipart-upload', 'multipart-part-upload', 'confirm-multipart-part', 'finish-multipart-upload', 'preview-multipart-upload', 'cleanup-multipart-upload'].includes(body.action)) throw invalidInput();
       const admin = await authenticate(request);
       switch (body.action) {
         case 'admin-state': return json(await adminState(admin));
@@ -472,6 +480,7 @@ export function createHandler(dependencies) {
         case 'preview-multipart-upload': return json(await mintMultipartDownload(uploadId(body.uploadId), await getSettings(), admin));
         case 'cleanup-multipart-upload': return json(await cleanupMultipartUpload(body, admin));
         case 'save-release': return json(await saveRelease(body, admin));
+        case 'update-installer-version': return json(await updateInstallerVersion(body, admin));
       }
       throw invalidInput();
     } catch (error) {

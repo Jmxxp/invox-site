@@ -34,6 +34,8 @@ Os instaladores ficam em bucket privado. Mesmo em modo público, o servidor gera
 
 A versão inicial é 1.1.0. Publique os arquivos reais pelo painel; nenhum instalador de exemplo é criado. Instaladores, versões e acesso são gerenciados pelo painel administrativo.
 
+Windows, macOS e Android têm versões independentes. O painel permite editar a versão publicada sem reenviar o arquivo e consultar o histórico de publicações com data e horário de Brasília.
+
 O painel abre em **Análises**, com visualizações e downloads iniciados por plataforma em Hoje, 7 dias, 30 dias e 12 meses, no horário de Brasília. Os dados começam na ativação da contagem e não recuperam acessos anteriores. `site-oficial/analytics.js` conta uma página visível por carregamento; testes locais não entram nas métricas.
 
 O login administrativo permanece salvo entre sessões do navegador, até sair ou o acesso ser revogado. O acesso privado aos downloads pode ser lembrado por até 30 dias, usando um token; a senha não é gravada no navegador. Os botões de Windows, macOS e Android usam gradientes translúcidos brilhantes roxo, azul e verde.

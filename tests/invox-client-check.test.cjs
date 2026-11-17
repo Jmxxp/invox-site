@@ -229,5 +229,15 @@ const ticket=(path='windows/1.1.0/upload-id/INVOX.exe')=>({path,token:'signed-up
   await pending;assert.equal(h.api.hasDownloadSession(),false);
   checks.push('A delayed download response cannot restore private access after logout');
  }
+ {
+  const h=harness();
+  await assert.rejects(()=>h.api.updateInstallerVersion('windows','1.2.0'),e=>e.code==='unauthorized');
+  assert.equal(h.state.fetchCalls.length,0);
+  h.state.session=sessionFixture;h.state.responses.push(ok({settings:{version:'1.1.0'},history:[]}));
+  await h.api.updateInstallerVersion('macos','1.2.3');
+  assert.deepEqual(h.state.fetchCalls[0].body,{action:'update-installer-version',platform:'macos',version:'1.2.3'});
+  assert.equal(h.state.fetchCalls[0].options.headers.Authorization,'Bearer access-token-fixture');
+  checks.push('Per-platform version edits use the authenticated endpoint without uploading file bytes');
+ }
  console.log(JSON.stringify({result:'PASS',checks},null,2));
 })().catch(error=>{console.error(error);process.exitCode=1;});

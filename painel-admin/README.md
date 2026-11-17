@@ -26,6 +26,10 @@ Feedbacks, análises, acesso e versões recebem atualizações por um canal Real
 
 Edite a versão no formato `1.1.0` e as novidades. Selecione ou arraste os instaladores por plataforma e clique em **Publicar versão e arquivos**. Arquivos novos substituem o instalador daquela plataforma após a publicação; plataformas sem uma nova seleção são mantidas.
 
+Cada plataforma tem seu próprio campo de versão. A versão geral do jogo identifica as novidades anunciadas no site; ela não obriga Windows, macOS e Android a usar o mesmo número. Para corrigir apenas a versão de um arquivo já publicado, use **Salvar versão** no cartão, sem selecionar outro arquivo. Isso não reenvia os bytes.
+
+O histórico abaixo reúne as últimas 100 publicações e alterações, com arquivo, plataforma, versão e data/hora com segundos em Brasília. **Atual** identifica o registro em uso. Registros que já existiam antes desta atualização aparecem como importados, preservando a data conhecida. As alterações acrescentam registros, sem sobrescrever os anteriores.
+
 O limite por arquivo vem do servidor e aparece acima dos cartões. O envio acontece para armazenamento privado, sem executar os instaladores. Se a publicação falhar, a seleção permanece para tentar novamente. Um arquivo enviado só fica disponível no site depois de a publicação ser confirmada.
 
 Instaladores grandes são armazenados em partes de 20 MiB, com hashes e retomada. Após recarregar, selecione novamente o mesmo arquivo e versão para aproveitar as partes já confirmadas. O painel mostra a capacidade disponível, que precisa comportar a versão anterior e a nova durante a troca. O teto lógico de 1,5 GiB não aumenta a cota total do projeto.

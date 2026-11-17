@@ -1,6 +1,6 @@
 # Backend do INVOX
 
-Projeto ativo: `wsfdwyghqqaerivyrbil`. Banco, bucket privado e função `invox-api` implantados em **17/11/2026**. O administrador `jmxxp` está cadastrado no Supabase Auth e autorizado no servidor. A configuração atual usa versão **1.1.0**, acesso público e aguarda os instaladores reais.
+Projeto ativo: `wsfdwyghqqaerivyrbil`. Banco, buckets privados e função `invox-api` implantados em **17/11/2026**. O administrador `jmxxp` está cadastrado no Supabase Auth e autorizado no servidor. Acesso, versões e instaladores publicados são gerenciados no painel.
 
 As migrações `20261117121558_invox_backend_init.sql`, `20261117124106_invox_analytics.sql`, `20261117125912_invox_download_sessions.sql`, `20261117175159_invox_analytics_generations.sql` e `20261117190431_invox_multipart_installers.sql` estão aplicadas. `schema.sql` preserva o snapshot completo sem credenciais; em um banco existente, use apenas migrações pendentes.
 
@@ -33,6 +33,12 @@ No site, um ticket opaco de oito horas autoriza as partes; URLs assinadas de 60 
 Os dois buckets continuam privados. Alterar acesso ou senha invalida tickets multipart; uma URL de parte já emitida pode durar até seu vencimento. O hash da senha nunca é retornado.
 
 ## Funções do banco
+
+A migração `20261117200708_invox_installer_version_history.sql` permite `files[].version` independente da versão geral em `save-release`, com fallback para a geral nos clientes antigos. `update-installer-version` altera somente a versão exibida da plataforma e retorna o estado administrativo atualizado, sem reenviar o arquivo. Plataforma, proprietário, tamanho, caminho e hash continuam validados; a versão original do upload não muda.
+
+`invox_installer_history` permite somente acréscimos, com RLS e leitura/inserção restritas ao servidor. `invox_installers.current_history_id` aponta o registro atual exato, inclusive quando um número de versão anterior é reutilizado. Cada edição ou publicação grava horário do servidor; repetições da mesma edição são idempotentes. A limpeza de objetos não remove o histórico. O estado administrativo inclui os últimos 100 registros; o site público não recebe esse histórico. O backfill preserva o timestamp conhecido dos instaladores atuais e os marca como importados.
+
+A validação em rollback usou o instalador Windows real para conferir versão independente, alteração sem bytes, repetição idempotente, retorno a um número anterior, ponteiro atual e autorização. O arquivo e a versão pública permaneceram intactos.
 
 - `invox_take_rate_limit(p_key_hash text, p_category text, p_window_seconds integer, p_limit integer) → boolean`: incremento atômico de tentativas. Hash SHA-256 hexadecimal de 64 caracteres, categoria `[a-z][a-z0-9_-]{0,63}`, janela de 1 a 86400 segundos e limite de 1 a 10000. Limpa até mil contadores com mais de um dia por chamada.
 - `invox_publish_release(p_version text, p_release_notes text, p_files jsonb, p_admin_id uuid) → void`: publicação atômica. O manifesto usa `[{"platform":"windows","path":"...","fileName":"INVOX.exe","size":123}]`. Aceita de zero a três plataformas sem repetição e exige correspondência com um upload autorizado.

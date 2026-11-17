@@ -113,6 +113,7 @@
     adminState: () => request('admin-state', {}, { admin: true }),
     saveAccess: data => request('save-access', data, { admin: true }),
     saveRelease: data => request('save-release', data, { admin: true }),
+    updateInstallerVersion: (platform, version) => request('update-installer-version', { platform, version }, { admin: true }),
     updateFeedback: data => request('update-feedback', data, { admin: true }),
     createUpload: (data, uploadGuard) => request('create-upload', data, { admin: true, uploadGuard }),
     createMultipartUpload: (data, uploadGuard) => request('create-multipart-upload', data, { admin: true, uploadGuard }),
