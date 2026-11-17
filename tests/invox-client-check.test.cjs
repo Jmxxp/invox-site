@@ -113,6 +113,17 @@ const ticket=(path='windows/1.1.0/upload-id/INVOX.exe')=>({path,token:'signed-up
   checks.push('Typed APK becomes equal-size octet-stream Blob with identical bytes; original filename/path preserved; PUT and progress confirmed');
  }
  {
+  const boundaryFile=new File([new Uint8Array(6*1024*1024)],'INVOX.exe');
+  const {api,state}=harness();state.session=sessionFixture;state.responses.push(ok(ticket()));
+  await api.uploadInstaller({platform:'windows',file:boundaryFile,version:'1.1.0'});
+  assert.equal(state.xhrCalls.length,1);assert.equal(state.xhrCalls[0].method,'PUT');
+  const overBoundary=new File([boundaryFile,new Uint8Array(1)],'INVOX.exe');
+  const missing=harness();missing.state.session=sessionFixture;
+  await assert.rejects(()=>missing.api.uploadInstaller({platform:'windows',file:overBoundary,version:'1.1.0'}),e=>e.code==='offline');
+  assert.equal(missing.state.fetchCalls.length,0);assert.equal(missing.state.xhrCalls.length,0);
+  checks.push('Files up to 6 MiB keep signed PUT; larger files fail clearly before requesting a ticket when the resumable client is unavailable');
+ }
+ {
   const badTickets=[
    {...ticket(),signedUrl:'https://outside.example.test/upload'},
    {...ticket(),signedUrl:ticket().signedUrl.replace('invox-installers','other-bucket')},

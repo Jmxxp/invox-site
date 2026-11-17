@@ -16,7 +16,13 @@ Todas as tabelas possuem RLS e negam acesso direto a `anon` e `authenticated`. A
 
 ## Instaladores e liberação
 
-O bucket `invox-installers` é privado, aceita `application/octet-stream` e limita cada arquivo a **50 MiB**, sem presumir um plano pago. Os formatos são EXE/MSI/ZIP no Windows, DMG/PKG/ZIP no macOS e APK no Android. Um limite maior exige conferir o projeto e ajustar bucket, API e restrições do banco em conjunto.
+O limite preparado no código é **1,5 GB (1.610.612.736 bytes)** por arquivo. Os formatos são EXE/MSI/ZIP no Windows, DMG/PKG/ZIP no macOS e APK no Android. O bucket `invox-installers` permanece privado e aceita apenas `application/octet-stream`.
+
+**Pendência de implantação:** em 17/11/2026 a Management API confirmou que a organização `dhkdnkulbjafrouchbqy` está no plano Free, com limite global e bucket de 52.428.800 bytes. O backend ativo também mantém esse limite. A migração `20261117172304_invox_installer_limit_1_5gb.sql` foi preparada, mas não aplicada. O painel usa o limite informado pelo servidor, portanto não anuncia 1,5 GB enquanto o armazenamento ativo ainda bloqueia esse tamanho.
+
+Para liberar o novo limite, é necessário mudar a organização para um plano compatível. Depois, configure `fileSizeLimit` global em 1.610.612.736 bytes, aplique a migração pendente e implante a versão correspondente de `invox-api`. Confirme o limite global, o bucket, as duas restrições de tamanho, a RPC de publicação e `admin-state` antes de enviar um instalador grande. Não basta alterar o texto do painel. Consulte os [limites do Supabase](https://supabase.com/docs/guides/storage/uploads/file-limits).
+
+Arquivos de até 6 MiB usam PUT assinado. Os maiores usam TUS com blocos de 6 MiB, progresso e retentativas em memória, sem carregar o arquivo inteiro em um ArrayBuffer. A biblioteca oficial `tus-js-client` 4.3.1 está fixada em `shared/vendor/`, com licença e integridade verificadas. O token de upload não é persistido no navegador; a retomada ocorre durante as tentativas da mesma transferência. O token assinado vale duas horas; uma tentativa após sua expiração pode exigir um novo envio autorizado.
 
 Políticas restritivas para esse bucket impedem que regras amplas existentes abram os arquivos para clientes. Outros buckets não são afetados. O servidor emite tokens de upload para caminhos novos e URLs de download de curta duração. O modo privado valida a senha no servidor antes de emitir a URL; seu hash nunca é retornado. Uma URL já emitida permanece válida até vencer.
 

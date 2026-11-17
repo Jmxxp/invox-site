@@ -18,7 +18,8 @@
     android: { extensions: ['apk'], label: 'Android' }
   };
   const files = { windows: null, macos: null, android: null };
-  let savedSettings = { visibility: 'public', hasPassword: false, version: '1.1.0', releaseNotes: '', uploadLimitBytes: 52428800 };
+  const defaultUploadLimitBytes = 1610612736;
+  let savedSettings = { visibility: 'public', hasPassword: false, version: '1.1.0', releaseNotes: '', uploadLimitBytes: defaultUploadLimitBytes };
   let accessDirty = false;
   let releaseDirty = false;
   let busy = false;
@@ -275,7 +276,7 @@
     sessionEpoch += 1;
     accessForm.reset();
     releaseForm.reset();
-    savedSettings = {visibility:'public',hasPassword:false,version:'1.1.0',releaseNotes:'',uploadLimitBytes:52428800};
+    savedSettings = {visibility:'public',hasPassword:false,version:'1.1.0',releaseNotes:'',uploadLimitBytes:defaultUploadLimitBytes};
     accessDirty = false;
     releaseDirty = false;
     password.value = '';

@@ -51,5 +51,9 @@ for (const name of ['config.js', 'script.js', 'shared/invox-client.js']) {
 }
 const manifest = JSON.parse(await fs.readFile(path.join(out, 'shared/vendor/manifest.json'), 'utf8'));
 assert.equal(createHash('sha256').update(await fs.readFile(path.join(out, 'shared/vendor/supabase.js'))).digest('hex'), manifest.sha256, 'Integridade do SDK');
+const tusManifest = JSON.parse(await fs.readFile(path.join(out, 'shared/vendor/tus-manifest.json'), 'utf8'));
+assert.equal(tusManifest.version, '4.3.1', 'Versão fixada do transporte TUS');
+assert.equal(createHash('sha256').update(await fs.readFile(path.join(out, 'shared/vendor/tus.min.js'))).digest('hex'), tusManifest.sha256, 'Integridade do transporte TUS');
+await fs.access(path.join(out, 'shared/vendor/tus-LICENSE.txt'));
 await fs.access(path.join(out, '.nojekyll'));
 console.log(JSON.stringify({ passed: true, files: files.length, references, sdk: manifest.version, adminPath: '/invox-site/admin/' }, null, 2));

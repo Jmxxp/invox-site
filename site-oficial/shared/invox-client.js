@@ -132,8 +132,62 @@
       xhr.send(init.body);
     });
   }
+  const uploadChunkSize = 6 * 1024 * 1024;
+  const resumableEndpoint = `${url.replace('.supabase.co', '.storage.supabase.co')}/storage/v1/upload/resumable`;
+  function resumableFailure(error) {
+    const status = error?.originalResponse?.getStatus?.() || 0;
+    if (status === 401 || status === 403) {
+      return failure('upload_expired', 'A autorização para este envio expirou. Inicie o envio novamente.', status);
+    }
+    if (status === 413) {
+      return failure('file_too_large', 'O arquivo excede o limite permitido pelo armazenamento. Confira o limite exibido no painel.', status);
+    }
+    return failure('upload_failed', 'Não foi possível concluir o envio após as tentativas de reconexão. Verifique sua conexão e tente novamente.', status);
+  }
+  function resumableUpload(file, ticket, onProgress) {
+    return new Promise((resolve, reject) => {
+      let finished = false;
+      let progress = 0;
+      const fail = error => {
+        if (finished) return;
+        finished = true;
+        reject(resumableFailure(error));
+      };
+      try {
+        // Keep the File intact: tus reads one chunk at a time and resumes retries
+        // from the server's offset without persisting signed upload URLs locally.
+        const upload = new window.tus.Upload(file, {
+          endpoint: resumableEndpoint,
+          headers: { apikey: key, 'x-signature': ticket.token },
+          metadata: { bucketName: 'invox-installers', objectName: ticket.path, contentType: 'application/octet-stream', cacheControl: '3600' },
+          chunkSize: uploadChunkSize,
+          parallelUploads: 1,
+          uploadDataDuringCreation: true,
+          retryDelays: [0, 3000, 5000, 10000, 20000],
+          storeFingerprintForResuming: false,
+          removeFingerprintOnSuccess: true,
+          onProgress(bytesUploaded, bytesTotal) {
+            if (finished || !Number.isFinite(bytesUploaded) || !Number.isFinite(bytesTotal) || bytesUploaded < 0 || bytesTotal <= 0) return;
+            progress = Math.max(progress, Math.min(99, Math.round(bytesUploaded * 100 / bytesTotal)));
+            onProgress?.(progress);
+          },
+          onError: fail,
+          onSuccess() {
+            if (finished) return;
+            finished = true;
+            resolve();
+          }
+        });
+        upload.start();
+      } catch (error) { fail(error); }
+    });
+  }
   api.uploadInstaller = async ({ platform, file, version, onProgress }) => {
     if (!sdk || !(file instanceof File)) throw failure('invalid_file', 'Selecione um instalador válido.');
+    const resumable = file.size > uploadChunkSize;
+    if (resumable && (typeof window.tus?.Upload !== 'function' || window.tus.isSupported === false)) {
+      throw failure('offline', 'O envio de arquivos grandes está indisponível neste navegador. Recarregue a página ou use um navegador atualizado.');
+    }
     const ticket = await api.createUpload({ platform, fileName: file.name, size: file.size, version });
     let uploadUrl;
     let signedPath;
@@ -153,14 +207,18 @@
       || uploadUrl.searchParams.get('token') !== ticket.token) {
       throw failure('invalid_upload', 'O servidor retornou um destino de envio inválido.');
     }
-    const uploader = window.supabase.createClient(url, key, {
-      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false, storageKey: `invox-upload-${crypto.randomUUID()}` },
-      global: { fetch: progressFetch(onProgress) }
-    });
     onProgress?.(0);
-    const payload = file.slice(0, file.size, 'application/octet-stream');
-    const { error } = await uploader.storage.from('invox-installers').uploadToSignedUrl(ticket.path, ticket.token, payload, { contentType: 'application/octet-stream', upsert: false });
-    if (error) throw failure('upload_failed', 'Não foi possível enviar o instalador. Tente novamente.');
+    if (resumable) {
+      await resumableUpload(file, ticket, onProgress);
+    } else {
+      const uploader = window.supabase.createClient(url, key, {
+        auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false, storageKey: `invox-upload-${crypto.randomUUID()}` },
+        global: { fetch: progressFetch(onProgress) }
+      });
+      const payload = file.slice(0, file.size, 'application/octet-stream');
+      const { error } = await uploader.storage.from('invox-installers').uploadToSignedUrl(ticket.path, ticket.token, payload, { contentType: 'application/octet-stream', upsert: false });
+      if (error) throw failure('upload_failed', 'Não foi possível enviar o instalador. Tente novamente.');
+    }
     onProgress?.(100);
     return { platform, path: ticket.path, fileName: file.name, size: file.size };
   };

@@ -13,6 +13,7 @@ Na raiz do repositório, execute `node scripts/serve-official.mjs`. Abra http://
 - `feedback.js`, `feedback.css`: envio real de feedback.
 - `shared/invox-client.js`: conexão pública, autenticação e chamadas ao servidor.
 - `shared/vendor/`: Supabase JS 2.119.0 fixado, licença e hash verificado.
+- `shared/vendor/tus.min.js`: transporte oficial TUS 4.3.1 para uploads grandes no painel, com chunks de 6 MiB, licença e hash verificado.
 - `lobby.js`, `lobby.css`: blocos 3D e interação a cada frame durante a rolagem.
 - `modes.js`, `modes.css`, `assets/modes/`: apresentações dos cinco modos reais do jogo. Os vídeos só rodam quando visíveis; com movimento reduzido ou falha de reprodução, os cards mantêm a imagem estática.
 

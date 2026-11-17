@@ -46,7 +46,7 @@ create table public.invox_installers (
   platform text primary key check (platform in ('windows', 'macos', 'android')),
   path text not null unique check (char_length(path) between 1 and 512 and path !~ '(^|/)\.\.(/|$)' and path !~ '^[\\/]'),
   file_name text not null check (char_length(file_name) between 1 and 180 and file_name !~ '[\\/[:cntrl:]]'),
-  size bigint not null check (size between 1 and 52428800),
+  size bigint not null check (size between 1 and 1610612736),
   version text not null check (char_length(version) between 1 and 64),
   updated_at timestamptz not null default now(),
   constraint invox_installer_extension check (
@@ -60,7 +60,7 @@ create table public.invox_uploads (
   path text primary key check (char_length(path) between 1 and 512 and path !~ '(^|/)\.\.(/|$)' and path !~ '^[\\/]'),
   platform text not null check (platform in ('windows', 'macos', 'android')),
   file_name text not null check (char_length(file_name) between 1 and 180 and file_name !~ '[\\/[:cntrl:]]'),
-  size bigint not null check (size between 1 and 52428800),
+  size bigint not null check (size between 1 and 1610612736),
   version text not null check (char_length(version) between 1 and 64),
   created_by uuid not null references auth.users(id),
   created_at timestamptz not null default now(),
@@ -101,7 +101,7 @@ insert into public.invox_site_settings (id, visibility, version)
 values (true, 'public', '1.1.0');
 
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-values ('invox-installers', 'invox-installers', false, 52428800, array['application/octet-stream']);
+values ('invox-installers', 'invox-installers', false, 1610612736, array['application/octet-stream']);
 
 -- Uma política ampla legada não pode abrir os instaladores deste bucket.
 create policy invox_installers_object_guard on storage.objects
@@ -202,13 +202,13 @@ begin
       or jsonb_typeof(v_file -> 'path') is distinct from 'string'
       or jsonb_typeof(v_file -> 'fileName') is distinct from 'string'
       or jsonb_typeof(v_file -> 'size') is distinct from 'number'
-      or (v_file ->> 'size') !~ '^[1-9][0-9]{0,7}$' then
+      or (v_file ->> 'size') !~ '^[1-9][0-9]{0,9}$' then
       raise exception 'Invalid installer manifest' using errcode = '22023';
     end if;
     v_platform := v_file ->> 'platform';
     v_size := (v_file ->> 'size')::bigint;
     if v_platform not in ('windows', 'macos', 'android')
-      or v_platform = any(v_platforms) or v_size > 52428800 then
+      or v_platform = any(v_platforms) or v_size > 1610612736 then
       raise exception 'Invalid or duplicated platform' using errcode = '22023';
     end if;
     v_platforms := array_append(v_platforms, v_platform);

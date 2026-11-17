@@ -1,6 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.119.0';
 
-const UPLOAD_LIMIT = 50 * 1024 * 1024;
+const UPLOAD_LIMIT = 1.5 * 1024 * 1024 * 1024;
 const MAX_BODY = 32 * 1024;
 const BUCKET = 'invox-installers';
 const PLATFORMS = ['windows', 'macos', 'android'];

@@ -78,7 +78,7 @@ const dispatch=(type,detail)=>{for(const fn of docEvents[type]||[])fn({detail})}
 const toasts=[],calls={access:[],uploads:[],releases:[]};
 let failAccess=false,failRelease=false;
 let server={settings:{visibility:'private',hasPassword:true,version:'1.1.0',releaseNotes:'Atualização real',uploadLimitBytes:1024},installers:[]};
-const backend={saveAccess:async payload=>{calls.access.push({...payload});if(failAccess)throw Error('offline');server.settings={...server.settings,visibility:payload.visibility,hasPassword:payload.visibility==='private'};return server.settings},uploadInstaller:async payload=>{calls.uploads.push(payload);return {platform:payload.platform,path:'fixture/'+payload.file.name,fileName:payload.file.name,size:payload.file.size}},saveRelease:async payload=>{calls.releases.push(payload);if(failRelease)throw Error('offline');server={...server,settings:{...server.settings,version:payload.version,releaseNotes:payload.releaseNotes},installers:payload.files.map(f=>({...f,version:payload.version}))};return server}};
+const backend={saveAccess:async payload=>{calls.access.push({...payload});if(failAccess)throw Error('offline');server.settings={...server.settings,visibility:payload.visibility,hasPassword:payload.visibility==='private'};return server.settings},uploadInstaller:async payload=>{calls.uploads.push(payload);payload.onProgress(37.5);assert.equal(ids['upload-progress'].value,37.5,'large uploads keep progress updates');return {platform:payload.platform,path:'fixture/'+payload.file.name,fileName:payload.file.name,size:payload.file.size}},saveRelease:async payload=>{calls.releases.push(payload);if(failRelease)throw Error('offline');server={...server,settings:{...server.settings,version:payload.version,releaseNotes:payload.releaseNotes},installers:payload.files.map(f=>({...f,version:payload.version}))};return server}};
 const window={InvoxBackend:backend,AdminUI:{toast:(...args)=>toasts.push(args)}};
 vm.runInNewContext(fs.readFileSync(path.resolve(__dirname,'../painel-admin/settings.js'),'utf8'),{window,document},{filename:'settings.js'});
 const snapshot=()=>JSON.parse(JSON.stringify(window.AdminSettings.getState()));
@@ -86,7 +86,9 @@ const chooseVisibility=value=>{radios.forEach(r=>{r.checked=r.value===value});ra
 const submit=async form=>{const event=form.emit('submit');assert(event.defaultPrevented);await event.completion};
 const fixture=(name,size=512)=>({name,size,type:'application/octet-stream',lastModified:1});
 (async()=>{
+ assert.equal(snapshot().settings.uploadLimitBytes,1610612736,'fallback permits 1.5GB before server settings arrive');
  dispatch('invox:admin-state',server);assert.equal(version.value,'1.1.0');assert.equal(notes.value,'Atualização real');assert.equal(password.required,false);assert.equal(ids['access-preview-status'].textContent,'Downloads com senha');
+ assert.equal(snapshot().settings.uploadLimitBytes,1024,'the server limit overrides the fallback');assert.match(ids['upload-limit'].textContent,/1 KB/);
  await submit(accessForm);assert.equal(calls.access.length,1);assert.equal(calls.access[0].password,'');
  chooseVisibility('public');dispatch('invox:admin-state',server);assert.equal(radios[0].checked,true);assert.equal(ids['access-preview-status'].textContent,'Downloads com senha');
  failAccess=true;await submit(accessForm);assert.equal(snapshot().settings.visibility,'private');assert.equal(toasts.at(-1)[1],'error');
@@ -97,10 +99,13 @@ const fixture=(name,size=512)=>({name,size,type:'application/octet-stream',lastM
  windows.input.files=[fixture('fixture.exe')];windows.input.emit('change');assert.equal(snapshot().selectedFiles.windows.name,'fixture.exe');
  windows.input.files=[fixture('wrong.apk')];windows.input.emit('change');assert.equal(snapshot().selectedFiles.windows.name,'fixture.exe');
  windows.input.files=[fixture('large.exe',1025)];windows.input.emit('change');assert.match(windows.error.textContent,/arquivo entre/);assert.equal(snapshot().selectedFiles.windows.name,'fixture.exe');
+ server.settings.uploadLimitBytes=1610612736;dispatch('invox:admin-state',server);assert.match(ids['upload-limit'].textContent,/1,5 GB/);
+ windows.input.files=[fixture('fixture.exe',1610612736)];windows.input.emit('change');assert.equal(windows.error.textContent,'');assert.equal(snapshot().selectedFiles.windows.size,1610612736);assert.match(windows.selected.children['.file-size'].textContent,/1,5 GB/);
+ windows.input.files=[fixture('too-large.exe',1610612737)];windows.input.emit('change');assert.match(windows.error.textContent,/1,5 GB/);assert.equal(snapshot().selectedFiles.windows.size,1610612736,'oversized selection preserves the previously accepted file');
  version.value='1.1.1';version.emit('input');notes.value='Fixture release';releaseForm.emit('input');
  dispatch('invox:admin-state',server);assert.equal(version.value,'1.1.1');
- failRelease=true;await submit(releaseForm);assert.equal(calls.uploads.length,1);assert.equal(snapshot().selectedFiles.windows.name,'fixture.exe');assert.equal(ids['summary-version'].textContent,'1.1.0');assert.match(ids['upload-status'].textContent,/não foi concluída/);
+ failRelease=true;await submit(releaseForm);assert.equal(calls.uploads.length,1);assert.equal(calls.uploads[0].file.size,1610612736,'a file at the limit reaches the upload backend');assert.equal(snapshot().selectedFiles.windows.name,'fixture.exe');assert.equal(ids['summary-version'].textContent,'1.1.0');assert.match(ids['upload-status'].textContent,/não foi concluída/);
  failRelease=false;await submit(releaseForm);assert.equal(calls.uploads.length,1,'retry reutiliza upload concluído');assert.equal(calls.releases.length,2);assert.equal(calls.releases[1].files[0].fileName,'fixture.exe');assert.equal(snapshot().selectedFiles.windows,null);assert.equal(ids['summary-version'].textContent,'1.1.1');assert.equal(ids['upload-progress'].value,100);
- dispatch('invox:admin-clear');assert.equal(password.value,'');assert.equal(notes.value,'');assert.equal(snapshot().selectedFiles.windows,null);assert.equal(ids['release-progress'].hidden,true);assert.equal(cardElements[0].children['.current-installer'].textContent,'');
- console.log('PASS connected settings: blank preserves existing password; server failure never confirms; successful password clears; upload limit/ext; dirty refresh; upload/publish failure retry; success metadata; logout clears PII/files.');
+ dispatch('invox:admin-clear');assert.equal(password.value,'');assert.equal(notes.value,'');assert.equal(snapshot().selectedFiles.windows,null);assert.equal(ids['release-progress'].hidden,true);assert.equal(cardElements[0].children['.current-installer'].textContent,'');assert.equal(snapshot().settings.uploadLimitBytes,1610612736,'logout restores the fallback limit');
+ console.log('PASS connected settings: blank preserves existing password; server failure never confirms; successful password clears; 1.5GB limit boundary/server override; upload ext; dirty refresh; upload/publish failure retry; success metadata; logout clears PII/files.');
 })().catch(error=>{console.error(error);process.exitCode=1});
