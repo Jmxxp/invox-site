@@ -29,6 +29,7 @@
   let uploadController = null;
   let savedStorage = null;
   let storageReplacement = null;
+  let installerReplacements = [];
   const replacementBox = document.getElementById('storage-replacement');
   const replacementReview = document.getElementById('storage-replacement-review');
   const replacementStart = document.getElementById('storage-replacement-start');
@@ -406,6 +407,7 @@
     replacementBox.hidden = true;
     replacementReview.hidden = true;
     replacementStart.hidden = false;
+    replacementStart.textContent = 'Substituir liberando espaço';
     replacementConfirm.disabled = true;
     replacementConfirm.textContent = 'Confirmar remoção e reenviar';
     replacementCancel.hidden = false;
@@ -415,20 +417,30 @@
     if (!storageReplacement) return false;
     const current = savedInstallers[storageReplacement.platform];
     const expected = storageReplacement.installer;
+    if (storageReplacement.resuming && current) return false;
     return files[storageReplacement.platform] === storageReplacement.file && (platformVersions[storageReplacement.platform].value.trim() || version.value.trim()) === storageReplacement.version && (!current ? storageReplacement.requested : current.path === expected.path && current.updatedAt === expected.updatedAt && current.uploadId === expected.uploadId && currentHistoryIds[storageReplacement.platform] === storageReplacement.historyId);
   }
   function offerStorageReplacement(platform,file) {
     const current = savedInstallers[platform];
     const historyId = currentHistoryIds[platform];
+    const candidateVersion = platformVersions[platform].value.trim() || version.value.trim();
     const hasStorageReference = current && (typeof current.path === 'string' && current.path.length > 0 || current.kind === 'multipart' && typeof current.uploadId === 'string' && /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i.test(current.uploadId));
-    if (!hasStorageReference || !historyId || !file || uploaded[platform]?.file === file || !savedStorage || !Number.isFinite(savedStorage.capacityBytes) || !Number.isFinite(savedStorage.availableBytes)) return;
+    if (!file || uploaded[platform]?.file === file || !savedStorage || !Number.isFinite(savedStorage.capacityBytes) || !Number.isFinite(savedStorage.availableBytes)) return;
     if (file.size > savedStorage.capacityBytes) return;
-    storageReplacement = {platform:platform,file:file,version:platformVersions[platform].value.trim() || version.value.trim(),installer:Object.assign({},current),historyId:historyId,requested:false};
-    document.getElementById('storage-replacement-current').textContent = platforms[platform].label + ' · ' + current.fileName + ' · ' + formatBytes(current.size) + ' · v' + current.version;
+    const pending = installerReplacements.find(function (job) { return job.platform === platform && !job.completedAt && job.replacement.fileName === file.name && job.replacement.size === file.size && job.replacement.version === candidateVersion; });
+    if (pending && current) return;
+    if (!pending && (!hasStorageReference || !historyId)) return;
+    const target = pending || current;
+    const replacement = pending ? Object.assign({},pending.replacement) : {fileName:file.name,size:file.size,version:candidateVersion};
+    storageReplacement = {platform:platform,file:file,version:replacement.version,installer:Object.assign({},target),historyId:pending ? pending.historyId : historyId,requested:Boolean(pending),resuming:Boolean(pending),replacement:replacement};
+    document.getElementById('storage-replacement-current').textContent = platforms[platform].label + ' · ' + target.fileName + ' · ' + formatBytes(target.size) + (target.version ? ' · v' + target.version : ' · liberação pendente');
     document.getElementById('storage-replacement-next').textContent = platforms[platform].label + ' · ' + file.name + ' · ' + formatBytes(file.size) + ' · v' + storageReplacement.version;
     document.getElementById('storage-replacement-warning').textContent = 'Downloads desta plataforma ficarão indisponíveis até a publicação do novo instalador. Downloads em andamento também poderão ser interrompidos.';
     replacementReview.hidden = true;
     replacementStart.hidden = false;
+    replacementStart.textContent = pending ? 'Concluir liberação pendente' : 'Substituir liberando espaço';
+    replacementConfirm.textContent = pending ? 'Concluir liberação e reenviar' : 'Confirmar remoção e reenviar';
+    replacementCancel.hidden = Boolean(pending);
     replacementConfirm.disabled = true;
     document.getElementById('storage-replacement-status').textContent = '';
     replacementBox.hidden = false;
@@ -671,7 +683,7 @@
     replacementCancel.hidden = true;
     status.textContent = 'Liberando o instalador confirmado. Aguarde…';
     try {
-      const state = await window.InvoxBackend.prepareInstallerReplacement({platform:intent.platform,expectedHistoryId:intent.historyId,confirm:true,replacement:{fileName:intent.file.name,size:intent.file.size,version:intent.version}});
+      const state = await window.InvoxBackend.prepareInstallerReplacement({platform:intent.platform,expectedHistoryId:intent.historyId,confirm:true,replacement:Object.assign({},intent.replacement)});
       if (epoch !== sessionEpoch) return;
       if (!state || !state.settings || !Array.isArray(state.installers) || state.replacement?.platform !== intent.platform || state.replacement?.historyId !== intent.historyId || typeof state.replacementPending !== 'boolean') throw new Error('O servidor não confirmou a liberação. Sua seleção foi preservada; tente concluir novamente.');
       loadState(state);
@@ -739,6 +751,7 @@
   }
   function loadState(state) {
     savedSettings = Object.assign({}, savedSettings, state.settings);
+    if (Array.isArray(state.installerReplacements)) installerReplacements = state.installerReplacements.filter(function (job) { return job && Object.prototype.hasOwnProperty.call(platforms,job.platform) && typeof job.historyId === 'string' && job.replacement && typeof job.replacement.fileName === 'string' && Number.isSafeInteger(job.replacement.size) && versionPattern.test(job.replacement.version); }).map(function (job) { return {platform:job.platform,historyId:job.historyId,fileName:job.fileName,size:job.size,kind:job.kind,startedAt:job.startedAt,completedAt:job.completedAt,replacement:{fileName:job.replacement.fileName,size:job.replacement.size,version:job.replacement.version}}; });
     if (state.storage) savedStorage = Object.assign({}, state.storage);
     if (!accessDirty) {
       radios.forEach(function (radio) { radio.checked = radio.value === savedSettings.visibility; });
@@ -786,6 +799,7 @@
     uploadController = null;
     sessionEpoch += 1;
     clearStorageReplacement();
+    installerReplacements = [];
     busy = false;
     savedStorage = null;
     accessForm.reset();
@@ -826,7 +840,7 @@
     updateVisibility();
   }
   window.AdminSettings = {clear:clear,getState:function () {
-    return {settings:Object.assign({},savedSettings),accessDirty:accessDirty,releaseDirty:releaseDirty,selectedFiles:Object.fromEntries(Object.keys(platforms).map(function (platform) { return [platform,fileMetadata(files[platform])]; })),platformVersions:Object.fromEntries(Object.keys(platforms).map(function (platform) { return [platform,platformVersions[platform].value]; })),downloadCodes:downloadCodes.map(function (row) { return Object.assign({},row); }),codeBusy:codeBusy};
+    return {settings:Object.assign({},savedSettings),accessDirty:accessDirty,releaseDirty:releaseDirty,selectedFiles:Object.fromEntries(Object.keys(platforms).map(function (platform) { return [platform,fileMetadata(files[platform])]; })),platformVersions:Object.fromEntries(Object.keys(platforms).map(function (platform) { return [platform,platformVersions[platform].value]; })),downloadCodes:downloadCodes.map(function (row) { return Object.assign({},row); }),codeBusy:codeBusy,installerReplacements:installerReplacements.map(function (job) { return Object.assign({},job,{replacement:Object.assign({},job.replacement)}); })};
   }};
   document.addEventListener('invox:admin-state', function (event) { loadState(event.detail); });
   document.addEventListener('invox:admin-clear', clear);
