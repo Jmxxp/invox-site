@@ -22,6 +22,8 @@ No modo público, visitantes baixam sem senha. No privado, a senha é validada n
 
 ## Versão e instaladores
 
+Feedbacks, análises, acesso e versões recebem atualizações por um canal Realtime privado após validar a conta. As consultas são agrupadas para evitar excesso de requisições. Rascunhos e notas em edição são preservados; o canal é encerrado ao sair ou trocar de conta.
+
 Edite a versão no formato `1.1.0` e as novidades. Selecione ou arraste os instaladores por plataforma e clique em **Publicar versão e arquivos**. Arquivos novos substituem o instalador daquela plataforma após a publicação; plataformas sem uma nova seleção são mantidas.
 
 O limite por arquivo vem do servidor e aparece acima dos cartões. O envio acontece para armazenamento privado, sem executar os instaladores. Se a publicação falhar, a seleção permanece para tentar novamente. Um arquivo enviado só fica disponível no site depois de a publicação ser confirmada.

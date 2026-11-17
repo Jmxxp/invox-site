@@ -23,6 +23,23 @@
   let inflight = null;
   let resetting = false;
   let generation = null;
+  let realtimeTimer = null;
+  let realtimeDirty = false;
+  let lastRealtimeFetch = 0;
+  function invalidateRealtime() {
+    if (!authenticated) return;
+    realtimeDirty = true;
+    scheduleRealtime();
+  }
+  function scheduleRealtime() {
+    if (!realtimeDirty || realtimeTimer !== null || !authenticated || panel.hidden || document.hidden || resetting || inflight) return;
+    const delay = Math.max(250, 1500 - (Date.now() - lastRealtimeFetch));
+    realtimeTimer = setTimeout(() => {
+      realtimeTimer = null;
+      if (!authenticated || panel.hidden || document.hidden || resetting || inflight) return;
+      load();
+    }, delay);
+  }
   function text(id, value) { document.getElementById(id).textContent = value; }
   function node(tag, className, value) {
     const element = document.createElement(tag);
@@ -228,6 +245,10 @@
   function load() {
     if (!authenticated || panel.hidden || resetting) return Promise.resolve();
     if (inflight?.period === period) return inflight.promise;
+    clearTimeout(realtimeTimer);
+    realtimeTimer = null;
+    realtimeDirty = false;
+    lastRealtimeFetch = Date.now();
     const current = ++sequence;
     const selected = period;
     const request = { period: selected, promise: null };
@@ -255,6 +276,7 @@
       } finally {
         if (inflight === request) inflight = null;
         if (current === sequence) panel.setAttribute('aria-busy', 'false');
+        scheduleRealtime();
       }
     })();
     return request.promise;
@@ -298,11 +320,16 @@
         updateControls();
         panel.setAttribute('aria-busy', 'false');
         if (!panel.hidden) (completed ? resetOpen : resetConfirm).focus();
+        if (!completed) scheduleRealtime();
       }
     }
     if (completed && current === sequence && authenticated) await load();
   }
   function clear() {
+    clearTimeout(realtimeTimer);
+    realtimeTimer = null;
+    realtimeDirty = false;
+    lastRealtimeFetch = 0;
     sequence += 1;
     authenticated = false;
     inflight = null;
@@ -343,8 +370,17 @@
   });
   resetConfirm.addEventListener('click', startNewCount);
   retry.addEventListener('click', load);
-  document.addEventListener('invox:admin-state', () => { authenticated = true; updateControls(); load(); });
+  document.addEventListener('invox:admin-state', event => {
+    const firstState = !authenticated;
+    authenticated = true;
+    updateControls();
+    if (firstState || event.refreshAnalytics !== false) load();
+  });
+  document.addEventListener('invox:admin-realtime', event => {
+    if (event.detail?.scopes?.some(scope => scope === 'analytics' || scope === 'all')) invalidateRealtime();
+  });
   document.addEventListener('invox:admin-clear', clear);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) scheduleRealtime(); });
   document.addEventListener('invox:panel-change', event => { if (event.detail?.panel === 'analytics') load(); });
   if (typeof ResizeObserver !== 'undefined') new ResizeObserver(() => { if (!panel.hidden && report) drawChart(); }).observe(chart);
   else window.addEventListener('resize', () => { if (!panel.hidden && report) drawChart(); });

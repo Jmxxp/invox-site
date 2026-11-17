@@ -80,6 +80,16 @@
   let availabilityReady = false;
   let activeDownload = null;
   let pendingFileSave = null;
+  let availabilitySequence = 0;
+  let appliedAvailabilitySequence = 0;
+  let automaticAvailabilityPending = false;
+  let automaticAvailabilityPromise = null;
+  let automaticAvailabilityTimer = null;
+  let realtimeUnsubscribe = null;
+  let realtimeEpoch = 0;
+  let pageSuspended = false;
+  let availabilityOwnsStatus = true;
+  let lastAutomaticRefreshAt = -Infinity;
 
   function backend() {
     if (!window.InvoxBackend) throw Object.assign(new Error(), { code: 'offline' });
@@ -136,8 +146,10 @@
     if (retryDownload) retryDownload.disabled = value;
     if (lockDownload) lockDownload.disabled = value;
     updateDownloadControls();
+    if (!value) scheduleAvailabilityRefresh();
   }
-  function showDownloadStatus(message, error = false) {
+  function showDownloadStatus(message, error = false, availability = false) {
+    availabilityOwnsStatus = availability;
     if (downloadStatus) {
       downloadStatus.textContent = message;
       downloadStatus.dataset.tone = error ? 'error' : 'normal';
@@ -145,14 +157,31 @@
     if (retryDownload) retryDownload.hidden = !error;
     if (retryLabel) retryLabel.textContent = pendingFileSave ? 'Escolher onde salvar' : 'Tentar novamente';
   }
-  async function refreshAvailability() {
+  function availabilityProtected() {
+    return downloadBusy || Boolean(passwordDialog?.open) || Boolean(pendingFileSave);
+  }
+  function deferBackgroundAvailability(sequence) {
+    if (pageSuspended || availabilityProtected()) {
+      automaticAvailabilityPending = true;
+      return true;
+    }
+    return sequence < appliedAvailabilitySequence;
+  }
+  async function refreshAvailability({ background = false } = {}) {
+    const sequence = ++availabilitySequence;
     let state;
     try { state = await backend().publicState(); }
-    catch (error) { unavailableConnection(); throw error; }
+    catch (error) {
+      if (background && deferBackgroundAvailability(sequence)) return null;
+      unavailableConnection(); throw error;
+    }
+    if (background && deferBackgroundAvailability(sequence)) return null;
+    if (sequence < appliedAvailabilitySequence) return state;
     if (!state || !['public', 'private'].includes(state.visibility) || !Array.isArray(state.platforms) || !state.platforms.every(item => item && typeof item.platform === 'string' && typeof item.available === 'boolean')) {
       unavailableConnection();
       throw Object.assign(new Error(), { code: 'offline' });
     }
+    appliedAvailabilitySequence = sequence;
     availabilityReady = true;
     lastVisibility = state.visibility;
     updateDownloadSession();
@@ -178,8 +207,67 @@
     const accessLabel = available.size && [...available.values()].some(item => item.available)
       ? (state.visibility === 'private' ? (hasDownloadSession() ? 'Acesso privado liberado neste navegador' : 'Acesso por senha') : 'Download liberado')
       : 'Instaladores em preparação';
-    showDownloadStatus(`Versão ${state.version || '1.1.0'} · ${accessLabel}`);
+    if (!background || availabilityOwnsStatus) showDownloadStatus(`Versão ${state.version || '1.1.0'} · ${accessLabel}`, false, true);
     return state;
+  }
+  function scheduleAvailabilityRefresh(delay = 250) {
+    if (!automaticAvailabilityPending || automaticAvailabilityTimer !== null || automaticAvailabilityPromise
+      || pageSuspended || document.visibilityState === 'hidden' || availabilityProtected()) return;
+    const wait = Math.max(delay, 2000 - (Date.now() - lastAutomaticRefreshAt));
+    automaticAvailabilityTimer = setTimeout(() => {
+      automaticAvailabilityTimer = null;
+      flushAvailabilityRefresh();
+    }, wait);
+  }
+  function flushAvailabilityRefresh() {
+    if (!automaticAvailabilityPending || pageSuspended || document.visibilityState === 'hidden' || availabilityProtected()) return;
+    if (automaticAvailabilityPromise) return automaticAvailabilityPromise;
+    automaticAvailabilityPending = false;
+    lastAutomaticRefreshAt = Date.now();
+    automaticAvailabilityPromise = refreshAvailability({ background: true }).catch(error => {
+      if (!pageSuspended && !availabilityProtected() && availabilityOwnsStatus) showDownloadStatus(errorCopy(error), true, true);
+    }).finally(() => {
+      automaticAvailabilityPromise = null;
+      scheduleAvailabilityRefresh();
+    });
+    return automaticAvailabilityPromise;
+  }
+  function invalidateAvailability(delay = 250) {
+    automaticAvailabilityPending = true;
+    scheduleAvailabilityRefresh(delay);
+  }
+  function catchUpAvailability() {
+    connectRealtime();
+    automaticAvailabilityPending = true;
+    if (automaticAvailabilityTimer !== null) {
+      clearTimeout(automaticAvailabilityTimer);
+      automaticAvailabilityTimer = null;
+    }
+    return flushAvailabilityRefresh();
+  }
+  function connectRealtime() {
+    if (pageSuspended || realtimeUnsubscribe || typeof window.InvoxBackend?.subscribeChanges !== 'function') return;
+    const epoch = ++realtimeEpoch;
+    try {
+      const unsubscribe = window.InvoxBackend.subscribeChanges({
+        audience: 'public',
+        onChange(change) {
+          if (epoch === realtimeEpoch && ['settings', 'installers', 'all'].includes(change?.scope)) invalidateAvailability();
+        },
+        onStatus(status) {
+          if (epoch === realtimeEpoch && status === 'SUBSCRIBED') invalidateAvailability(0);
+        }
+      });
+      realtimeUnsubscribe = typeof unsubscribe === 'function' ? unsubscribe : null;
+    } catch { /* Focus and online catch-up remain available if realtime cannot start. */ }
+  }
+  function stopRealtime() {
+    realtimeEpoch += 1;
+    if (automaticAvailabilityTimer !== null) clearTimeout(automaticAvailabilityTimer);
+    automaticAvailabilityTimer = null;
+    const unsubscribe = realtimeUnsubscribe;
+    realtimeUnsubscribe = null;
+    try { Promise.resolve(unsubscribe?.()).catch(() => {}); } catch { /* Page teardown must not interrupt the browser. */ }
   }
   async function startDownload(result, context = {}, preferFileSystem = false) {
     if (result?.kind === 'multipart') {
@@ -316,6 +404,7 @@
     passwordStatus.textContent = '';
     passwordSubmit.disabled = false;
     passwordSubmit.textContent = 'LIBERAR DOWNLOAD';
+    scheduleAvailabilityRefresh();
   });
   async function retryAvailability(allowFileSave = false) {
     if (downloadBusy || (pendingFileSave && !allowFileSave)) return;
@@ -327,9 +416,9 @@
       finally { setDownloadBusy(false); }
       return;
     }
-    showDownloadStatus('Consultando os instaladores...');
+    showDownloadStatus('Consultando os instaladores...', false, true);
     try { await refreshAvailability(); }
-    catch (error) { showDownloadStatus(errorCopy(error), true); }
+    catch (error) { showDownloadStatus(errorCopy(error), true, true); }
     finally { setDownloadBusy(false); }
   }
   retryDownload?.addEventListener('click', () => retryAvailability(true));
@@ -351,10 +440,19 @@
     }
   });
   window.addEventListener?.('storage', updateDownloadSession);
-  window.addEventListener?.('focus', () => { if (document.visibilityState !== 'hidden') return retryAvailability(); });
+  window.addEventListener?.('focus', () => { if (document.visibilityState !== 'hidden') return catchUpAvailability(); });
+  window.addEventListener?.('online', catchUpAvailability);
+  window.addEventListener?.('pagehide', () => { pageSuspended = true; stopRealtime(); });
+  window.addEventListener?.('pageshow', () => {
+    if (!pageSuspended) return;
+    pageSuspended = false;
+    connectRealtime();
+    return catchUpAvailability();
+  });
   window.addEventListener?.('invox:download-session', updateDownloadSession);
   document.addEventListener('invox:download-session', updateDownloadSession);
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') return retryAvailability(); });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') return catchUpAvailability(); });
+  connectRealtime();
   retryAvailability();
 
   document.querySelectorAll("[data-open-dialog]").forEach((trigger) => {

@@ -40,7 +40,7 @@ function harness() {
     querySelectorAll: key => key === '[data-download]' ? links : key === 'dialog' ? [ids['download-password-dialog'], ids['notice-dialog']] : [],
     createElement: () => new Node(), addEventListener() {} };
   const window = { InvoxBackend: api, InvoxMultipartDownloads: multipart, addEventListener: (key, fn) => (windowEvents[key] ||= []).push(fn) };
-  vm.runInNewContext(source, { window, document, HTMLDialogElement: Node, HTMLElement: Node, Element: Node, URL, AbortController });
+  vm.runInNewContext(source, { window, document, HTMLDialogElement: Node, HTMLElement: Node, Element: Node, URL, AbortController, setTimeout, clearTimeout });
   return { ids, links, calls, helperCalls, state, setMode: value => mode = value, assertStarting: fn => assertStarting = fn,
     focus: async () => { for (const fn of windowEvents.focus || []) await fn({}); } };
 }

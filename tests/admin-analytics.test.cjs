@@ -25,7 +25,7 @@ const requests = [];
 const resets=[];
 const windowEvents={};
 const window = { AdminUI: { lastState: null, refresh() {} }, addEventListener(name,callback) {(windowEvents[name]||=[]).push(callback);}, InvoxBackend: { analytics: period => new Promise((resolve, reject) => requests.push({ period, resolve, reject })),resetAnalytics:()=>new Promise((resolve,reject)=>resets.push({resolve,reject})) } };
-vm.runInNewContext(source, { document, window, Intl, Date });
+vm.runInNewContext(source, { document, window, Intl, Date, setTimeout, clearTimeout });
 const flush = () => new Promise(resolve => setImmediate(resolve));
 function fixture(period, views = 0, downloads = 0, generation=1) {
   return { period, generation,timezone: 'America/Sao_Paulo', startedAt: generation===1?'2026-11-17T10:00:00Z':'2026-11-17T18:00:00Z', range: { start: '2026-11-16T03:00:00Z', end: '2026-11-17T19:00:00Z' }, series: [{ key: '2026-11-16T03:00:00Z', label: '16/11', views: 0, downloads: 0 }, { key: '2026-11-17T03:00:00Z', label: '17/11', views, downloads }], totals: { views, downloads }, allTime: { views: views + 20, downloads: downloads + 3 }, platforms: [{ platform: 'windows', downloads }, { platform: 'macos', downloads: 0 }, { platform: 'android', downloads: 0 }] };

@@ -47,6 +47,14 @@ A implantação multipart foi validada com **64 MiB reais**, em quatro objetos (
 
 Todas as tabelas usam RLS, sem permissões diretas para visitantes, com RPCs restritas ao servidor e bucket privado. Os advisors não apontaram erros. Permanece um aviso de [proteção contra senhas vazadas desativada](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection); a disponibilidade dessa opção depende da configuração e do plano do projeto.
 
+## Realtime
+
+A migração `20261117194612_invox_realtime_updates.sql` está aplicada. Triggers enviam apenas invalidações `{scope}` com `realtime.send`: `invox:site` público para acesso/versões/instaladores, e `invox:admin` privado para feedbacks, análises e configurações. Não há assinatura de linhas via Postgres Changes. O SDK descarta metadados extras de transporte e consulta novamente a API.
+
+O helper `invox_private.realtime_admin()` verifica a identidade atual e a allowlist, com e-mail confirmado. O schema não é exposto à Data API. Policies de leitura e guards restritivos em `realtime.messages` protegem o tópico administrativo sem conceder leitura das tabelas de negócio. Clientes não podem publicar nesse tópico. A autorização do canal é cacheada pelo Realtime; a API revalida o administrador a cada busca, e os eventos não contêm dados privados.
+
+Na implantação, WebSockets reais receberam eventos de criação/alteração de feedback, configurações, instaladores e análises. O cliente anônimo foi recusado no canal privado; um canal público com o mesmo nome não recebeu seus eventos. O feedback temporário foi removido e os valores de configuração/contadores foram preservados. `tests/realtime-authorization.sql` valida permissões em rollback. Os testes de interface cobrem reconexão, agrupamento de eventos, rascunhos e downloads ativos.
+
 ## Análises
 
 `track-view` registra um carregamento visível do site publicado com um UUID temporário, reutilizado em tentativas de reenvio. Acessos locais ficam fora da contagem. São armazenados contadores horários agregados, sem cookies de análise, URLs completas ou identificação de visitantes. UUIDs de deduplicação com mais de um dia são limpos gradualmente.

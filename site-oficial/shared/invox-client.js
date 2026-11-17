@@ -127,6 +127,64 @@
       return api.adminState();
     }
   };
+  api.subscribeChanges = ({ audience, onChange, onStatus } = {}) => {
+    const privateChannel = audience === 'admin';
+    const scopes = new Set(privateChannel ? ['feedback', 'analytics', 'settings', 'installers', 'all'] : ['settings', 'installers', 'all']);
+    let disposed = false, channel = null, authSubscription = null, owner = null;
+    const status = value => { try { onStatus?.(value); } catch { /* UI callbacks cannot break transport cleanup. */ } };
+    const stop = () => {
+      if (disposed) return;
+      disposed = true;
+      authSubscription?.unsubscribe();
+      authSubscription = null;
+      if (channel) {
+        try { Promise.resolve(sdk.removeChannel(channel)).catch(() => {}); } catch { /* Already closed locally. */ }
+        channel = null;
+      }
+      status('CLOSED');
+    };
+    const connect = async () => {
+      if (disposed) return;
+      if (!['public', 'admin'].includes(audience) || typeof sdk?.channel !== 'function') throw failure('offline', 'Atualizações em tempo real indisponíveis.');
+      if (privateChannel) {
+        authSubscription = sdk.auth.onAuthStateChange((event, session) => {
+          if (event === 'SIGNED_OUT' || (owner && session && session.user?.id !== owner)) stop();
+        })?.data?.subscription;
+        if (disposed) { authSubscription?.unsubscribe(); authSubscription = null; return; }
+        const session = (await sdk.auth.getSession())?.data?.session;
+        if (disposed) return;
+        if (!session?.user?.id || !session.access_token) throw failure('unauthorized', 'Entre no painel para continuar.', 401);
+        owner = session.user.id;
+        // The pinned SDK resolves the current session and refreshes Realtime JWTs
+        // on Auth events. Do not retain a separate, potentially stale token.
+        await sdk.realtime?.setAuth();
+        if (disposed) return;
+        const current = (await sdk.auth.getSession())?.data?.session;
+        if (disposed) return;
+        if (current?.user?.id !== owner) { stop(); return; }
+      }
+      if (disposed) return;
+      channel = sdk.channel(privateChannel ? 'invox:admin' : 'invox:site', {
+        config: { private: privateChannel, broadcast: { self: false, ack: false } }
+      });
+      channel.on('broadcast', { event: 'invalidate' }, message => {
+        if (disposed || !scopes.has(message?.payload?.scope)) return;
+        // Events only invalidate; all state still comes from the authorized API.
+        try { onChange?.({ scope: message.payload.scope }); } catch { /* Keep transport alive. */ }
+      }).subscribe(value => { if (!disposed) status(value); });
+    };
+    Promise.resolve().then(connect).catch(() => {
+      if (disposed) return;
+      authSubscription?.unsubscribe();
+      authSubscription = null;
+      if (channel) {
+        try { Promise.resolve(sdk.removeChannel(channel)).catch(() => {}); } catch { /* Setup failed before subscription. */ }
+        channel = null;
+      }
+      status('CHANNEL_ERROR');
+    });
+    return stop;
+  };
   function cancelledUpload() {
     return failure('upload_cancelled', 'O envio foi interrompido. Selecione o arquivo novamente para retomar.');
   }

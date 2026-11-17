@@ -80,13 +80,68 @@
   const retry = document.getElementById('auth-retry');
   const refreshButton = document.getElementById('refresh-admin');
   let refreshPromise = null;
+  let refreshTask = null;
   let authEpoch = 0;
+  let authIdentity = null;
+  let authEventSequence = 0;
+  let liveSubscription = null;
+  let liveTimer = null;
+  const liveScopes = new Set();
+  function stopRealtime() {
+    const subscription = liveSubscription;
+    liveSubscription = null;
+    try { Promise.resolve(subscription?.stop?.()).catch(() => {}); } catch { /* A closed channel cannot retain UI callbacks. */ }
+    clearTimeout(liveTimer);
+    liveTimer = null;
+    liveScopes.clear();
+  }
+  function queueRealtime(scope = 'all') {
+    if (!window.AdminUI.lastState || shell.hidden) return;
+    liveScopes.add(['feedback', 'analytics', 'settings', 'installers'].includes(scope) ? scope : 'all');
+    if (liveTimer !== null || document.hidden) return;
+    const epoch = authEpoch;
+    liveTimer = setTimeout(() => {
+      liveTimer = null;
+      if (epoch !== authEpoch || !window.AdminUI.lastState || shell.hidden || document.hidden) return;
+      const scopes = [...liveScopes];
+      liveScopes.clear();
+      if (!scopes.length) return;
+      document.dispatchEvent(new CustomEvent('invox:admin-realtime', {detail:{scopes}}));
+      if (scopes.some(value => value !== 'analytics')) refreshAdmin(false, false, true);
+    }, 300);
+  }
+  function ensureRealtime() {
+    if (!window.AdminUI.lastState || typeof api?.subscribeChanges !== 'function') return;
+    const identity = window.AdminUI.lastState.admin.email || window.AdminUI.lastState.admin.username;
+    if (liveSubscription && (liveSubscription.epoch !== authEpoch || liveSubscription.identity !== identity)) stopRealtime();
+    if (liveSubscription) return;
+    const subscription = {epoch:authEpoch,identity,stop:null};
+    liveSubscription = subscription;
+    const current = () => liveSubscription === subscription && subscription.epoch === authEpoch;
+    try {
+      subscription.stop = api.subscribeChanges({
+        audience:'admin',
+        onChange:change => { if (current()) queueRealtime(change?.scope); },
+        onStatus:status => { if (current() && status === 'SUBSCRIBED') queueRealtime('all'); }
+      });
+      if (!current()) subscription.stop?.();
+    } catch { if (current()) liveSubscription = null; }
+  }
+  function resumeRealtime() {
+    if (!window.AdminUI.lastState || document.hidden) return;
+    ensureRealtime();
+    queueRealtime('all');
+  }
   function authMessage(message, error = false) {
     loginStatus.textContent = message;
     loginStatus.classList.toggle('is-error', error);
   }
   function clearAdmin(message) {
     authEpoch += 1;
+    stopRealtime();
+    refreshTask = null;
+    refreshPromise = null;
+    refreshButton.disabled = false;
     shell.hidden = true;
     authScreen.hidden = false;
     closeSidebar();
@@ -97,12 +152,17 @@
     document.dispatchEvent(new CustomEvent('invox:admin-clear'));
     authMessage(message || 'Entre com sua conta para continuar.');
   }
-  async function refreshAdmin(notify = false) {
-    if (refreshPromise) return refreshPromise;
+  async function refreshAdmin(notify = false, refreshAnalytics = true, rememberIfBusy = false) {
+    if (refreshTask?.epoch === authEpoch) {
+      if (rememberIfBusy) refreshTask.pending = true;
+      return refreshTask.promise;
+    }
     const epoch = authEpoch;
+    const task = {epoch,promise:null,pending:false};
+    refreshTask = task;
     refreshButton.disabled = true;
     retry.hidden = true;
-    refreshPromise = (async () => {
+    task.promise = (async () => {
       try {
         const state = await api.adminState();
         if (epoch !== authEpoch) return;
@@ -112,18 +172,30 @@
         authScreen.hidden = true;
         password.value = '';
         window.AdminUI.lastState = state;
-        document.dispatchEvent(new CustomEvent('invox:admin-state', {detail:state}));
+        const stateEvent = new CustomEvent('invox:admin-state', {detail:state});
+        stateEvent.refreshAnalytics = refreshAnalytics;
+        document.dispatchEvent(stateEvent);
+        ensureRealtime();
         if (notify) toast('Painel atualizado.');
       } catch (error) {
         if (epoch !== authEpoch) return;
+        if (window.AdminUI.lastState && error.code !== 'unauthorized' && error.code !== 'forbidden') {
+          if (notify) toast(error.message || 'Não foi possível atualizar o painel. Os últimos dados continuam exibidos.', 'error');
+          return;
+        }
         clearAdmin();
         authMessage(error.code === 'forbidden' ? 'Esta conta não tem permissão de administrador.' : (error.message || 'Não foi possível validar seu acesso. Tente novamente.'), true);
         retry.hidden = false;
       } finally {
-        refreshPromise = null;
-        refreshButton.disabled = false;
+        if (refreshTask === task) {
+          refreshTask = null;
+          refreshPromise = null;
+          refreshButton.disabled = false;
+          if (task.pending && epoch === authEpoch && window.AdminUI.lastState) queueRealtime('settings');
+        }
       }
     })();
+    refreshPromise = task.promise;
     return refreshPromise;
   }
   window.AdminUI.refresh = refreshAdmin;
@@ -151,6 +223,11 @@
     authMessage(error ? 'O painel foi fechado. Não foi possível encerrar a sessão no navegador; tente sair novamente ao entrar.' : 'Sessão encerrada.', Boolean(error));
   });
   retry.addEventListener('click', () => { if (api?.auth) refreshAdmin(); else location.reload(); });
+  window.addEventListener('focus', resumeRealtime);
+  window.addEventListener('online', resumeRealtime);
+  window.addEventListener('pageshow', resumeRealtime);
+  window.addEventListener('pagehide', stopRealtime);
+  document.addEventListener('visibilitychange', resumeRealtime);
   if (!api?.auth || location.protocol === 'file:') {
     authMessage(location.protocol === 'file:' ? 'Abra o painel por um servidor HTTP ou pelo endereço publicado para entrar.' : 'Não foi possível carregar a conexão. Recarregue a página.', true);
     loginForm.querySelectorAll('button').forEach(button => { button.disabled = true; });
@@ -158,14 +235,26 @@
     return;
   }
   api.auth.onAuthStateChange((event, session) => {
+    const identity = session?.user?.id || null;
+    const changedIdentity = identity && authIdentity && identity !== authIdentity;
+    if (event === 'SIGNED_OUT' || changedIdentity) authEpoch += 1;
+    if (event === 'SIGNED_OUT') authIdentity = null;
+    else if (identity) authIdentity = identity;
+    const currentEvent = ++authEventSequence;
     setTimeout(() => {
+      if (currentEvent !== authEventSequence) return;
       if (event === 'SIGNED_OUT') clearAdmin('Sessão encerrada.');
-      else if (session) refreshAdmin();
+      else if (session) {
+        if (changedIdentity) clearAdmin();
+        refreshAdmin();
+      }
     }, 0);
   });
+  const initialAuthEvent = authEventSequence;
   api.auth.getSession().then(({data,error}) => {
+    if (initialAuthEvent !== authEventSequence) return;
     if (error) { authMessage(error.message, true); retry.hidden = false; }
-    else if (data.session) refreshAdmin();
+    else if (data.session) { authIdentity = data.session.user?.id || null; refreshAdmin(); }
     else clearAdmin();
   }).catch(() => { authMessage('Não foi possível recuperar sua sessão.', true); retry.hidden = false; });
 })();
