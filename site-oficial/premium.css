@@ -38,13 +38,13 @@ section[id],.about-game,.features,.downloads{scroll-margin-top:0}
 .download-heading h2{text-shadow:0 0 28px #c057f92e,0 2px 6px #07011066}
 .download-card{--card-edge:#cc37ff;--card-edge-bright:#f2c3ff;--card-base:#500087c2;--card-core:#b422efb3;--card-glow:#c400ff55;--card-glow-strong:#d56bff88;--card-shine:#dfa1ff1a;--card-icon-glow:#e5a5ff99;--card-border:linear-gradient(115deg,var(--card-edge),var(--card-edge-bright),var(--card-edge));--card-surface:linear-gradient(160deg,#ffffff18,transparent 45%),linear-gradient(115deg,var(--card-base),var(--card-core),var(--card-base));opacity:1;background:var(--card-surface);background-size:200% 100%;backdrop-filter:blur(18px) saturate(1.35);-webkit-backdrop-filter:blur(18px) saturate(1.35);box-shadow:inset 0 1px 0 #ffffff4d,inset 0 -1px 0 #00000033,inset 0 0 28px var(--card-glow);animation:premium-flow 10s ease-in-out infinite;clip-path:polygon(16px 0,calc(100% - 16px) 0,100% 16px,100% calc(100% - 16px),calc(100% - 16px) 100%,16px 100%,0 calc(100% - 16px),0 16px);transform:perspective(900px) rotateX(var(--tilt-x,0deg)) rotateY(var(--tilt-y,0deg));transition:transform .18s,filter .18s,box-shadow .18s}
 .download-card::before{inset:0;opacity:1;background:var(--card-border);background-size:200% 100%;animation:premium-flow 10s ease-in-out infinite;pointer-events:none;clip-path:polygon(evenodd,16px 0,calc(100% - 16px) 0,100% 16px,100% calc(100% - 16px),calc(100% - 16px) 100%,16px 100%,0 calc(100% - 16px),0 16px,16px 0,17px 2px,2px 17px,2px calc(100% - 17px),17px calc(100% - 2px),calc(100% - 17px) calc(100% - 2px),calc(100% - 2px) calc(100% - 17px),calc(100% - 2px) 17px,calc(100% - 17px) 2px,17px 2px);box-shadow:none;transition:filter .18s}
-.download-card::after{inset:2px;pointer-events:none;background:radial-gradient(ellipse 220px 160px at var(--pointer-x,50%) var(--pointer-y,50%),#ffffff12,transparent 75%),radial-gradient(circle at var(--entry-x,50%) var(--entry-y,50%),var(--card-shine),transparent 70%);opacity:0;transform:scale(.8);transition:opacity .18s,transform .18s}
+.download-card::after{inset:2px;pointer-events:none;background:radial-gradient(ellipse 240px 150px at var(--pointer-x,50%) var(--pointer-y,50%),#ffffff1f,transparent 74%),radial-gradient(circle at var(--entry-x,50%) var(--entry-y,50%),var(--card-shine),transparent 70%),linear-gradient(170deg,#ffffff16,transparent 46%,#ffffff05);opacity:.2;transform:scale(1);transition:opacity .28s}
 .download-card>*{position:relative;z-index:1}
-.download-card:hover,.download-card.is-pointer-active{background:var(--card-surface);background-size:200% 100%;transform:perspective(900px) translateY(-4px) rotateX(var(--tilt-x,0deg)) rotateY(var(--tilt-y,0deg));filter:brightness(1.05) saturate(1.03)}
-.download-card:hover::before,.download-card.is-pointer-active::before{box-shadow:none;filter:brightness(1.15)}
-.download-card:hover::after,.download-card.is-pointer-active::after{opacity:.45;transform:scale(1)}
+.download-card:hover,.download-card.is-pointer-active,.download-card:focus-visible{background:var(--card-surface);background-size:200% 100%;transform:perspective(900px) translateY(-6px) scale(1.012) rotateX(var(--tilt-x,0deg)) rotateY(var(--tilt-y,0deg));filter:brightness(1.09) saturate(1.08);box-shadow:inset 0 1px 0 #ffffff80,inset 0 -1px 0 #ffffff26,inset 0 0 42px var(--card-glow-strong)}
+.download-card:hover::before,.download-card.is-pointer-active::before{box-shadow:none;filter:brightness(1.3);animation-duration:2.5s}
+.download-card:hover::after,.download-card.is-pointer-active::after,.download-card:focus-visible::after{opacity:1;transform:scale(1)}
 .download-card .platform-icon{color:#fff;transition:transform .18s,filter .18s}
-.download-card:hover .platform-icon{transform:translateX(-2px);filter:drop-shadow(0 0 10px var(--card-icon-glow))}
+.download-card:hover .platform-icon,.download-card:focus-visible .platform-icon{transform:translateY(-2px) scale(1.04);filter:drop-shadow(0 0 12px var(--card-icon-glow))}
 .download-windows{--card-edge:#cc37ff;--card-edge-bright:#f2c3ff;--card-base:#500087c2;--card-core:#b422efb3;--card-glow:#c400ff55;--card-glow-strong:#d56bff88;--card-shine:#dfa1ff1a;--card-icon-glow:#e5a5ff99}
 .download-macos{--card-edge:#299fff;--card-edge-bright:#c0e6ff;--card-base:#003977c2;--card-core:#137bdfb3;--card-glow:#1689ff55;--card-glow-strong:#56b4ff88;--card-shine:#86caff1a;--card-icon-glow:#a6d9ff99}
 .download-android{--card-edge:#18ec79;--card-edge-bright:#c2ffdd;--card-base:#005133c2;--card-core:#039657b3;--card-glow:#25bf6555;--card-glow-strong:#63e59a88;--card-shine:#8df4b31a;--card-icon-glow:#a5ffcb99}
@@ -52,6 +52,9 @@ section[id],.about-game,.features,.downloads{scroll-margin-top:0}
 .download-card:focus-visible::before{background:#fff;box-shadow:none;filter:none}
 .download-card:focus-visible{background:var(--card-surface);filter:drop-shadow(0 0 14px var(--card-glow-strong))}
 .download-card:active{transform:translateY(0) scale(.99);transition-duration:.08s}
+.download-card>.download-sheen{position:absolute;z-index:0;left:0;top:-70%;width:32%;height:240%;pointer-events:none;background:linear-gradient(90deg,transparent,#ffffff0a 20%,#ffffff38 50%,#ffffff0a 80%,transparent);opacity:0;transform:translateX(-260%) skewX(-22deg)}
+.download-card:hover>.download-sheen,.download-card.is-pointer-active>.download-sheen,.download-card:focus-visible>.download-sheen{animation:download-sheen-pass .95s cubic-bezier(.2,.6,.3,1) both}
+@keyframes download-sheen-pass{0%{transform:translateX(-260%) skewX(-22deg);opacity:0}20%{opacity:.85}80%{opacity:.7}100%{transform:translateX(500%) skewX(-22deg);opacity:0}}
 .game-panel{transition:filter .3s,transform .3s}
 .game-pillar:hover,.game-mode:hover{filter:brightness(1.1);transform:translateY(-3px)}
 .game-possibility>i{transition:color .25s,filter .25s}
@@ -84,10 +87,11 @@ section[id],.about-game,.features,.downloads{scroll-margin-top:0}
   .game-outro .game-closing-title{font-size:clamp(20px,5.85vw,36px);line-height:1.28;max-width:560px}
   .game-outro .game-closing-title .game-closing-line{display:block}
   .game-closing-title .game-closing-line .game-word-glow{text-shadow:0 0 13px #a600ff80,0 0 27px #8a00e955}
-  .download-card:hover{transform:translateY(-3px)}
 }
 @media(max-width:380px){.site-chrome .brand{width:125px}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.site-chrome,.download-card,.game-panel,.game-possibility>i{transition:none}.download-card,.download-card::before,.download-card::after,.game-word-glow{animation:none!important}.download-card,.download-card:hover,.game-pillar:hover,.game-mode:hover{transform:none!important}.download-card::after{opacity:0}.reveal-ready [data-reveal]{opacity:1;transform:none;transition:none}.game-closing-title .game-closing-line .game-word-glow{text-shadow:0 0 12px #9f00ff55}}
 
 .site-chrome .nav-feedback{gap:8px;border-color:#b34ae577;background:linear-gradient(115deg,#7d18a733,#a600e522)}
 .site-chrome .nav-feedback i{font-size:14px}
+@media(hover:none),(pointer:coarse){.download-card:hover{transform:none;filter:none}.download-card:hover::after{opacity:.2}.download-card:hover .platform-icon{transform:none;filter:none}.download-card>.download-sheen{display:none}}
+@media(prefers-reduced-motion:reduce){.download-card>.download-sheen{display:none}.download-card .platform-icon{transition:none}.download-card:hover .platform-icon,.download-card:focus-visible .platform-icon{transform:none}}
