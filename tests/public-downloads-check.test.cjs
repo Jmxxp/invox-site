@@ -24,7 +24,7 @@ function harness(){
   const api={publicState:async()=>{calls.push(['state']);if(error)throw error;return state;},download:async(platform,password='')=>{calls.push(['download',platform,password]);if(error||downloadError)throw error||downloadError;return response;}};
   const events={},windowEvents={};
   const document={visibilityState:'visible',activeElement:null,body:{append:n=>downloads.push(n)},getElementById:id=>ids[id],querySelector:()=>null,querySelectorAll:q=>q==='[data-download]'?links:q==='[data-platform-version]'?platformVersions:q==='[data-game-version]'?[version]:q==='dialog'?[ids['notice-dialog'],ids['download-password-dialog']]:[],createElement:()=>new Node(),addEventListener:(name,fn)=>(events[name]||=[]).push(fn)};
-  vm.runInNewContext(source,{document,window:{InvoxBackend:api,addEventListener:(name,fn)=>(windowEvents[name]||=[]).push(fn)},HTMLDialogElement:Node,HTMLElement:Node,Element:Node,URL});
+  vm.runInNewContext(source,{document,window:{InvoxBackend:api,addEventListener:(name,fn)=>(windowEvents[name]||=[]).push(fn)},HTMLDialogElement:Node,HTMLElement:Node,Element:Node,URL,crypto:require('node:crypto').webcrypto});
   return {ids,links,version,platformVersions,downloads,calls,state,setError:value=>error=value,setDownloadError:value=>downloadError=value,setResponse:value=>response=value,focus:async()=>{for(const fn of windowEvents.focus||[])await fn({});},visible:async value=>{document.visibilityState=value;for(const fn of events.visibilitychange||[])await fn({});}};
 }
 (async()=>{
@@ -35,7 +35,7 @@ function harness(){
   await h.links[0].emit('click');assert.equal(h.calls.filter(c=>c[0]==='state').length,2);assert.equal(h.downloads.length,1);assert(h.downloads[0].clicked&&h.downloads[0].removed);
   const callsBeforeDisabled=h.calls.length;await h.links[1].emit('click');assert.equal(h.downloads.length,1);assert.equal(h.calls.length,callsBeforeDisabled,'Card sem arquivo não faz requisição nem abre modal');assert.equal(h.ids['download-password-dialog'].open,false);
   h.state.visibility='private';await h.links[0].emit('click');assert(h.ids['download-password-dialog'].open);
-  h.ids['download-password'].value='fake-password';h.setError({code:'invalid_password'});await h.ids['download-password-form'].emit('submit');assert(h.ids['download-password-dialog'].open);assert.equal(h.ids['download-password'].value,'');assert.match(h.ids['download-password-status'].textContent,/Senha incorreta/);
+  h.ids['download-password'].value='fake-password';h.setError({code:'invalid_password'});await h.ids['download-password-form'].emit('submit');assert(h.ids['download-password-dialog'].open);assert.equal(h.ids['download-password'].value,'');assert.match(h.ids['download-password-status'].textContent,/Código de acesso incorreto/);
   h.setError(null);h.ids['download-password'].value='fake-password';await h.ids['download-password-form'].emit('submit');assert.equal(h.downloads.length,2);assert(!h.ids['download-password-dialog'].open);assert.equal(h.ids['download-password'].value,'');
   h.state.visibility='public';h.setError({code:'offline'});await h.links[0].emit('click');assert.equal(h.downloads.length,2);assert.equal(h.ids['download-retry'].hidden,false);
   assert(h.links.every(link=>link.attrs['aria-disabled']==='true'));const offlineCalls=h.calls.length;await h.links[0].emit('click');assert.equal(h.calls.length,offlineCalls,'Offline mantém cards bloqueados até nova consulta');

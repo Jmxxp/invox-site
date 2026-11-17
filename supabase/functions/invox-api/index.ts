@@ -250,6 +250,23 @@ export function createHandler(dependencies) {
     if (!result.entry || !Array.isArray(result.downloadCodes)) throw unavailable();
     return { code, entry: result.entry, downloadCodes: result.downloadCodes };
   }
+  async function createDownloadCodes(body, admin) {
+    const id = uploadId(body.id).toLowerCase(), label = body.label === undefined ? '' : body.label, count = body.count;
+    const maxUses = body.maxUses === undefined ? 1 : body.maxUses, hours = body.validForHours == null ? null : body.validForHours;
+    if (typeof label !== 'string' || label.trim().length > 80 || /[\x00-\x1f\x7f]/.test(label)
+      || !Number.isInteger(count) || count < 1 || count > 100 || !Number.isInteger(maxUses) || maxUses < 1 || maxUses > 1000
+      || (hours !== null && (!Number.isInteger(hours) || hours < 1 || hours > 8760))) throw invalidInput();
+    const codes = [], manifest = [];
+    for (let index = 0; index < count; index++) {
+      const hex = await deriveAccessSecret('invox-code-batch-entry:v1:' + id + ':' + index);
+      const entryId = `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-8${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
+      const code = 'INVOX-' + (await deriveAccessSecret('invox-code:v1:' + entryId)).toUpperCase();
+      codes.push(code); manifest.push({ id: entryId, hash: await sha256(code, cryptography) });
+    }
+    const result = await accessRpc('invox_create_download_codes', { p_admin_id: admin.user_id, p_id: id, p_label: label.trim(), p_count: count, p_max_uses: maxUses, p_valid_for_hours: hours, p_codes: manifest });
+    if (!Array.isArray(result.entries) || result.entries.length !== count || result.entries.some((entry, index) => entry.id !== manifest[index].id) || !Array.isArray(result.downloadCodes)) throw unavailable();
+    return { codes, entries: result.entries, downloadCodes: result.downloadCodes };
+  }
   function opaqueToken() { return Array.from(cryptography.getRandomValues(new Uint8Array(32)), byte => byte.toString(16).padStart(2, '0')).join(''); }
   function uploadId(value) { if (typeof value !== 'string' || !UUID.test(value)) throw invalidInput(); return value; }
   function partIndex(value) { if (!Number.isInteger(value) || value < 0 || value > 76) throw invalidInput(); return value; }
@@ -408,14 +425,28 @@ export function createHandler(dependencies) {
     const settings = await getSettings();
     let accessSession = null;
     let passwordFingerprint = null;
+    let suppliedPassword = body.password, verifiedPassword = false, checkedPassword = false;
+    const unified = body.accessCode !== undefined;
     if (settings.visibility === 'private') {
       await rateLimit(request, 'private_download', 900, 10);
-      if (body.code !== undefined) return downloadWithCode(body);
+      if (unified) {
+        if (typeof body.accessCode !== 'string' || body.accessCode.length > 128) throw invalidInput();
+        suppliedPassword = body.accessCode;
+        // A valid universal key keeps its meaning even when it resembles a token.
+        if (suppliedPassword && settings.download_universal_enabled && typeof settings.download_password_hash === 'string') {
+          checkedPassword = true;
+          verifiedPassword = await passwordMatches(suppliedPassword, settings.download_password_hash, cryptography);
+        }
+        if (!verifiedPassword && /^INVOX-[A-F0-9]{64}$/.test(suppliedPassword.trim().toUpperCase())) {
+          return { ...await downloadWithCode({ ...body, code: suppliedPassword }), accessMethod: 'code' };
+        }
+        if (!verifiedPassword && !settings.download_universal_enabled) throw fault('invalid_code', 'Código de acesso inválido.', 403);
+      } else if (body.code !== undefined) return { ...await downloadWithCode(body), accessMethod: 'code' };
       if (!settings.download_universal_enabled) throw fault('universal_disabled', 'A chave universal está desativada. Use um código de acesso.', 401);
-      if (body.accessToken !== undefined && (typeof body.accessToken !== 'string' || body.accessToken.length > 64)) throw invalidInput();
+      if (!unified && body.accessToken !== undefined && (typeof body.accessToken !== 'string' || body.accessToken.length > 64)) throw invalidInput();
       if (typeof settings.download_password_hash !== 'string') throw unavailable();
       passwordFingerprint = await sha256(settings.download_password_hash, cryptography);
-      if (typeof body.accessToken === 'string' && DOWNLOAD_TOKEN.test(body.accessToken)) {
+      if (!unified && typeof body.accessToken === 'string' && DOWNLOAD_TOKEN.test(body.accessToken)) {
         const tokenHash = await sha256(body.accessToken, cryptography);
         const result = await service.from('invox_download_sessions').select('password_fingerprint,access_generation,expires_at').eq('token_hash', tokenHash).maybeSingle();
         if (result.error) throw unavailable();
@@ -425,8 +456,8 @@ export function createHandler(dependencies) {
         }
       }
       if (!accessSession) {
-        if (typeof body.password !== 'string' || body.password.length === 0) throw fault('password_required', 'Informe a senha de acesso.', 401);
-        if (body.password.length > 128 || !await passwordMatches(body.password, settings.download_password_hash, cryptography)) throw fault('invalid_password', 'Senha de acesso incorreta.', 403);
+        if (typeof suppliedPassword !== 'string' || suppliedPassword.length === 0) throw fault('password_required', unified ? 'Informe o código de acesso.' : 'Informe a senha de acesso.', 401);
+        if (suppliedPassword.length > 128 || (!verifiedPassword && (checkedPassword || !await passwordMatches(suppliedPassword, settings.download_password_hash, cryptography)))) throw fault('invalid_password', unified ? 'Código de acesso incorreto.' : 'Senha de acesso incorreta.', 403);
       }
     }
     const installer = await service.from('invox_installers').select(INSTALLER_COLUMNS).eq('platform', body.platform).maybeSingle();
@@ -449,11 +480,11 @@ export function createHandler(dependencies) {
       if (typeof expiresAt !== 'string' || !Number.isFinite(Date.parse(expiresAt)) || Date.parse(expiresAt) <= Date.parse(now())) throw unavailable();
       accessSession = { token, expiresAt };
     }
-    if (multipart) return { ...multipart, ...(accessSession ? { accessSession } : {}) };
+    if (multipart) return { ...multipart, ...(accessSession ? { accessSession, accessMethod: 'universal' } : {}) };
     if (settings.visibility === 'private') {
       if (!await accessRpc('invox_authorize_universal_legacy', { p_access_generation: settings.download_access_generation, p_platform: body.platform })) throw unavailable();
     } else if (!await recordAnalytics('download', null, body.platform)) throw unavailable();
-    return { url: data.signedUrl, fileName: published.file_name, expiresIn: 60, ...(accessSession ? { accessSession } : {}) };
+    return { url: data.signedUrl, fileName: published.file_name, expiresIn: 60, ...(accessSession ? { accessSession, accessMethod: 'universal' } : {}) };
   }
   async function mintMultipartDownload(id, settings, admin = null) {
     const ticket = opaqueToken();
@@ -657,7 +688,7 @@ export function createHandler(dependencies) {
         case 'logout-download': return json(await logoutDownload(request, body));
         case 'feedback': return json(await feedback(request, body), 201);
       }
-      if (!['admin-state', 'analytics', 'reset-analytics', 'save-access', 'create-download-code', 'revoke-download-code', 'update-feedback', 'create-upload', 'save-release', 'update-installer-version', 'create-multipart-upload', 'multipart-part-upload', 'confirm-multipart-part', 'finish-multipart-upload', 'preview-multipart-upload', 'cleanup-multipart-upload', 'save-announcement', 'set-announcement-active'].includes(body.action)) throw invalidInput();
+      if (!['admin-state', 'analytics', 'reset-analytics', 'save-access', 'create-download-code', 'create-download-codes', 'revoke-download-code', 'update-feedback', 'create-upload', 'save-release', 'update-installer-version', 'create-multipart-upload', 'multipart-part-upload', 'confirm-multipart-part', 'finish-multipart-upload', 'preview-multipart-upload', 'cleanup-multipart-upload', 'save-announcement', 'set-announcement-active'].includes(body.action)) throw invalidInput();
       const admin = await authenticate(request);
       if (!['admin-state', 'analytics'].includes(body.action)) await rateLimit(request, 'admin_write', 60, 60, admin.user_id);
       switch (body.action) {
@@ -666,6 +697,7 @@ export function createHandler(dependencies) {
         case 'reset-analytics': return json(await resetAnalytics(admin));
         case 'save-access': return json(await saveAccess(body));
         case 'create-download-code': return json(await createDownloadCode(body, admin));
+        case 'create-download-codes': return json(await createDownloadCodes(body, admin));
         case 'revoke-download-code': return json(await accessRpc('invox_revoke_download_code', { p_admin_id: admin.user_id, p_id: uploadId(body.id) }));
         case 'update-feedback': return json(await updateFeedback(body));
         case 'save-announcement': return json(await saveAnnouncement(request, body, admin), 201);

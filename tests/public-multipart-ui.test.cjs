@@ -19,9 +19,9 @@ function harness() {
   const calls = [], helperCalls = [], windowEvents = {};
   let grant = false, mode = 'success', assertStarting = () => {};
   const state = { visibility: 'public', version: '1.1.0', platforms: [{ platform: 'windows', available: true }] };
-  const result = { kind: 'multipart', ticket: 'a'.repeat(64), fileName: 'INVOX.exe', size: 10, parts: [{ index: 0, size: 10, sha256: 'b'.repeat(64) }] };
+  const result = { kind: 'multipart', ticket: 'a'.repeat(64), fileName: 'INVOX.exe', size: 10, accessMethod: 'universal', parts: [{ index: 0, size: 10, sha256: 'b'.repeat(64) }] };
   const api = { publicState: async () => state, hasDownloadSession: () => grant,
-    download: async (platform, password = '') => { calls.push(['download', platform, password]); if (password) grant = true; return result; },
+    download: async (platform, password = '', options = {}) => { calls.push(['download', platform, password]); if (password || options.accessCode) grant = true; return result; },
     downloadPart: async (ticket, index) => { calls.push(['part', ticket, index]); return {}; }, lockDownloads: async () => { grant = false; } };
   const multipart = { async start(manifest, options) {
     helperCalls.push({ manifest, options }); assertStarting();
@@ -40,7 +40,7 @@ function harness() {
     querySelectorAll: key => key === '[data-download]' ? links : key === 'dialog' ? [ids['download-password-dialog'], ids['notice-dialog']] : [],
     createElement: () => new Node(), addEventListener() {} };
   const window = { InvoxBackend: api, InvoxMultipartDownloads: multipart, addEventListener: (key, fn) => (windowEvents[key] ||= []).push(fn) };
-  vm.runInNewContext(source, { window, document, HTMLDialogElement: Node, HTMLElement: Node, Element: Node, URL, AbortController, setTimeout, clearTimeout });
+  vm.runInNewContext(source, { window, document, HTMLDialogElement: Node, HTMLElement: Node, Element: Node, URL, AbortController, setTimeout, clearTimeout, crypto: require('node:crypto').webcrypto });
   return { ids, links, calls, helperCalls, state, setMode: value => mode = value, assertStarting: fn => assertStarting = fn,
     focus: async () => { for (const fn of windowEvents.focus || []) await fn({}); } };
 }

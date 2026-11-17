@@ -24,6 +24,10 @@ Em modo privado, `download` aceita `{platform,code,requestId}`. O UUID deve perm
 
 As tabelas de códigos e autorizações têm RLS e não permitem leitura ou resgate direto por visitantes autenticados ou anônimos. `tests/download-access-codes.sql` verifica contagem, retomada, troca de chave, isolamento de gerações, partes e permissões usando rollback, sem alterar instaladores ou contadores reais.
 
+A geração em lote usa `create-download-codes` com `{id,count,label,maxUses,validForHours}`. A quantidade é de 1 a 100 tokens, gerados atomicamente, e os mesmos parâmetros e UUID recuperam o mesmo lote após uma falha de conexão. Uma criação confirmada exige outro UUID para gerar novos tokens. A resposta contém `codes`, `entries` e `downloadCodes`; o banco guarda somente metadados e hashes. O endpoint individual anterior continua compatível.
+
+O campo único do visitante envia `{platform,accessCode,requestId}`. O servidor reconhece a chave universal ou o token e informa `accessMethod` na resposta. Somente a confirmação `universal` pode criar uma sessão persistente no cliente; a credencial explícita não usa uma autorização universal antiga para ignorar o código informado. Os corpos anteriores com `password` ou `code` permanecem aceitos.
+
 O painel aceita instaladores de até **1,5 GiB (1.610.612.736 bytes)**. Arquivos grandes são divididos em **partes de 20 MiB**, cada uma armazenada como objeto privado separado. O limite global de 50 MiB por objeto permanece. Os formatos continuam EXE/MSI/ZIP, DMG/PKG/ZIP e APK.
 
 O novo bucket privado `invox-installer-parts` tem limite de 20 MiB e MIME `application/octet-stream` e deve ser criado pela Storage API. O bucket legado `invox-installers` continua privado, com 50 MiB. A proposta antiga em `proposals/` não é necessária para o fluxo multipart.

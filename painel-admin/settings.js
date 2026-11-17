@@ -44,9 +44,9 @@
   const historyCount = document.getElementById('release-history-count');
   const historyDate = new Intl.DateTimeFormat('pt-BR', {timeZone:'America/Sao_Paulo',dateStyle:'short',timeStyle:'medium'});
   const codeForm = document.getElementById('download-code-form');
-  const codeFields = {label:document.getElementById('download-code-label'),max:document.getElementById('download-code-max'),validity:document.getElementById('download-code-validity')};
+  const codeFields = {count:document.getElementById('download-code-quantity'),label:document.getElementById('download-code-label'),max:document.getElementById('download-code-max'),validity:document.getElementById('download-code-validity')};
   let downloadCodes = [], codeBusy = false, codesAuthenticated = false, codeAttempt = null;
-  let secretCode = '', secretEntryId = null, secretView = 0;
+  let secretCode = '', secretView = 0;
 
 
   function toast(message, tone) {
@@ -78,7 +78,7 @@
     downloadCodes = Array.from(merged.values()).sort(function (a,b) { return (Date.parse(b.createdAt) || 0) - (Date.parse(a.createdAt) || 0); }).slice(0,100);
   }
   function hideCode() {
-    secretView += 1; secretCode = ''; secretEntryId = null;
+    secretView += 1; secretCode = '';
     document.getElementById('download-code-secret').value = '';
     document.getElementById('download-code-result-label').textContent = '';
     document.getElementById('download-code-result').hidden = true;
@@ -86,7 +86,7 @@
   function codeControls() {
     Object.values(codeFields).forEach(function (field) { field.disabled = codeBusy || !codesAuthenticated; });
     document.getElementById('download-code-create').disabled = codeBusy || !codesAuthenticated;
-    document.getElementById('download-code-create-label').textContent = codeBusy ? 'Aguarde…' : secretCode ? 'Gerar outro código' : 'Gerar código';
+    document.getElementById('download-code-create-label').textContent = codeBusy ? 'GERANDO…' : 'GERAR TOKENS';
     document.getElementById('download-code-copy').disabled = !codesAuthenticated || !secretCode;
     document.getElementById('download-code-hide').disabled = !codesAuthenticated || !secretCode;
     codeForm.setAttribute('aria-busy',String(codeBusy));
@@ -104,9 +104,9 @@
   function renderCodes() {
     const list = document.getElementById('download-code-list');
     list.replaceChildren();
-    document.getElementById('download-code-count').textContent = downloadCodes.length + (downloadCodes.length === 1 ? ' código' : ' códigos');
+    document.getElementById('download-code-count').textContent = downloadCodes.length + (downloadCodes.length === 1 ? ' token' : ' tokens');
     document.getElementById('download-code-empty').hidden = downloadCodes.length > 0;
-    document.getElementById('download-code-empty').textContent = codesAuthenticated ? 'Nenhum código criado ainda.' : 'Entre no painel para consultar os códigos.';
+    document.getElementById('download-code-empty').textContent = codesAuthenticated ? 'Nenhum token criado ainda.' : 'Entre no painel para consultar os tokens.';
     const states = {active:'Disponível',exhausted:'Esgotado',expired:'Expirado',revoked:'Revogado',unavailable:'Indisponível'};
     downloadCodes.forEach(function (row) {
       const status = codeState(row), card = codeElement('article','download-code-entry');
@@ -130,21 +130,19 @@
       }
       card.append(content,controls); list.append(card);
     });
-    const created = downloadCodes.find(function (row) { return row.id === secretEntryId; });
-    if (created && codeState(created) !== 'active') {
-      hideCode();
-      if (!codeBusy) codeStatus('Este código não está mais disponível para novos downloads.');
-    }
     codeControls();
   }
   function codeParameters() {
-    const label = codeFields.label.value.trim(), maxUses = Number(codeFields.max.value);
+    const count = Number(codeFields.count.value), label = codeFields.label.value.trim(), maxUses = Number(codeFields.max.value);
     const expiry = codeFields.validity.value, validForHours = expiry === '' ? null : Number(expiry);
+    codeFields.count.setCustomValidity(Number.isInteger(count) && count >= 1 && count <= 100 ? '' : 'Escolha de 1 a 100 tokens.');
     codeFields.label.setCustomValidity(label.length <= 80 ? '' : 'Use uma identificação de até 80 caracteres.');
     codeFields.max.setCustomValidity(Number.isInteger(maxUses) && maxUses >= 1 && maxUses <= 1000 ? '' : 'Escolha de 1 a 1000 downloads.');
     codeFields.validity.setCustomValidity(validForHours === null || [24,168,720].includes(validForHours) ? '' : 'Selecione uma validade disponível.');
+    const options = codeForm.querySelector('.download-code-options');
+    if (options && [codeFields.label,codeFields.max,codeFields.validity].some(function (field) { return field.validationMessage; })) options.open = true;
     const browserValid = codeForm.reportValidity();
-    return browserValid && label.length <= 80 && Number.isInteger(maxUses) && maxUses >= 1 && maxUses <= 1000 && (validForHours === null || [24,168,720].includes(validForHours)) ? {label:label,maxUses:maxUses,validForHours:validForHours} : null;
+    return browserValid && Number.isInteger(count) && count >= 1 && count <= 100 && label.length <= 80 && Number.isInteger(maxUses) && maxUses >= 1 && maxUses <= 1000 && (validForHours === null || [24,168,720].includes(validForHours)) ? {count:count,label:label,maxUses:maxUses,validForHours:validForHours} : null;
   }
   async function createCode(event) {
     event.preventDefault();
@@ -154,25 +152,25 @@
     try {
       if (!codeAttempt || codeAttempt.fingerprint !== fingerprint) {
         const cryptography = window.crypto || globalThis.crypto;
-        if (typeof cryptography?.randomUUID !== 'function') throw new Error('Use um navegador atualizado para gerar códigos.');
+        if (typeof cryptography?.randomUUID !== 'function') throw new Error('Use um navegador atualizado para gerar tokens.');
         codeAttempt = {id:cryptography.randomUUID(),fingerprint:fingerprint};
       }
       const attempt = codeAttempt;
-      hideCode(); codeBusy = true; renderCodes(); codeStatus('Gerando código…');
-      const result = await window.InvoxBackend.createDownloadCode(Object.assign({id:attempt.id},params));
+      hideCode(); codeBusy = true; renderCodes(); codeStatus('Gerando tokens…');
+      const result = await window.InvoxBackend.createDownloadCodes(Object.assign({id:attempt.id},params));
       if (epoch !== sessionEpoch) return;
-      if (!result || typeof result.code !== 'string' || !result.code || result.code.length > 256 || !validCode(result.entry)
-        || result.entry.id !== attempt.id || result.entry.maxUses !== params.maxUses || !Array.isArray(result.downloadCodes)) throw new Error('Não foi possível confirmar o código criado. Tente novamente com os mesmos campos.');
-      mergeCodes(result.downloadCodes); mergeCodes([result.entry]);
-      const current = downloadCodes.find(function (row) { return row.id === attempt.id; }) || result.entry;
+      if (!result || !Array.isArray(result.codes) || result.codes.length !== params.count
+        || !result.codes.every(function (code) { return typeof code === 'string' && code.length > 0 && code.length <= 256 && !/[\r\n]/.test(code); })
+        || new Set(result.codes).size !== params.count || !Array.isArray(result.entries) || result.entries.length !== params.count
+        || !result.entries.every(function (entry) { return validCode(entry) && entry.maxUses === params.maxUses; })
+        || new Set(result.entries.map(function (entry) { return entry.id; })).size !== params.count || !Array.isArray(result.downloadCodes)) throw new Error('Não foi possível confirmar os tokens criados. Tente novamente com os mesmos campos.');
+      mergeCodes(result.downloadCodes); mergeCodes(result.entries);
       codeAttempt = null;
-      if (codeState(current) === 'active') {
-        secretCode = result.code; secretEntryId = current.id; secretView += 1;
-        document.getElementById('download-code-secret').value = secretCode;
-        document.getElementById('download-code-result-label').textContent = (current.label || 'Sem identificação') + ' · ' + current.maxUses + (current.maxUses === 1 ? ' download' : ' downloads');
-        document.getElementById('download-code-result').hidden = false;
-        codeStatus('Código criado. Copie e compartilhe com a pessoa autorizada.','success');
-      } else codeStatus('Este código já não possui acesso disponível. Gere outro código.');
+      secretCode = result.codes.join('\n\n'); secretView += 1;
+      document.getElementById('download-code-secret').value = secretCode;
+      document.getElementById('download-code-result-label').textContent = params.count + (params.count === 1 ? ' token' : ' tokens') + ' · ' + params.maxUses + (params.maxUses === 1 ? ' download por token' : ' downloads por token');
+      document.getElementById('download-code-result').hidden = false;
+      codeStatus('Tokens gerados. Copie a lista e compartilhe os acessos.','success');
       renderCodes();
     } catch (error) {
       if (epoch === sessionEpoch) codeStatus(error.message || 'Não foi possível confirmar a criação. Tente novamente sem alterar os campos.','error');
@@ -192,7 +190,6 @@
       const confirmed = Array.isArray(result?.downloadCodes) && result.downloadCodes.find(function (row) { return row.id === id && (row.revokedAt || row.status === 'revoked'); });
       if (!confirmed) throw new Error('O servidor não confirmou a revogação. Atualize a lista e tente novamente.');
       mergeCodes(result.downloadCodes);
-      if (secretEntryId === id) hideCode();
       codeStatus('Código revogado. Ele não libera novos downloads.','success');
     } catch (error) {
       if (epoch === sessionEpoch) codeStatus(error.message || 'Não foi possível revogar o código.','error');
@@ -206,12 +203,12 @@
     try {
       if (typeof window.navigator?.clipboard?.writeText !== 'function') throw new Error('clipboard unavailable');
       await window.navigator.clipboard.writeText(code);
-      if (epoch === sessionEpoch && view === secretView && secretCode === code) codeStatus('Código copiado.','success');
+      if (epoch === sessionEpoch && view === secretView && secretCode === code) codeStatus('Tokens copiados.','success');
     } catch {
       if (epoch !== sessionEpoch || view !== secretView) return;
       const input = document.getElementById('download-code-secret');
       input.focus(); input.select?.(); input.setSelectionRange?.(0,input.value.length);
-      codeStatus('Selecione o código e copie manualmente. A cópia automática não foi confirmada.');
+      codeStatus('Selecione os tokens e copie manualmente. A cópia automática não foi confirmada.');
     }
   }
 
@@ -604,7 +601,7 @@
     savedSettings = {visibility:'public',hasPassword:false,universalEnabled:true,version:'1.1.0',releaseNotes:'',uploadLimitBytes:defaultUploadLimitBytes};
     universal.checked = true;
     codesAuthenticated = false; codeBusy = false; codeAttempt = null; downloadCodes = [];
-    hideCode(); codeForm.reset(); codeFields.label.value = ''; codeFields.max.value = '1'; codeFields.validity.value = '';
+    hideCode(); codeForm.reset(); codeFields.count.value = '1'; codeFields.label.value = ''; codeFields.max.value = '1'; codeFields.validity.value = '';
     Object.values(codeFields).forEach(function (field) { field.setCustomValidity(''); });
     codeStatus(''); renderCodes();
     accessDirty = false;
@@ -641,11 +638,11 @@
   document.addEventListener('invox:admin-clear', clear);
   codeForm.addEventListener('submit',createCode);
   Object.values(codeFields).forEach(function (field) {
-    const changed = function () { if (codeBusy) return; codeAttempt = null; field.setCustomValidity(''); if (!secretCode) codeStatus(''); };
+    const changed = function () { if (codeBusy) return; field.setCustomValidity(''); if (!secretCode) codeStatus(''); };
     field.addEventListener('input',changed); field.addEventListener('change',changed);
   });
   document.getElementById('download-code-copy').addEventListener('click',copyCode);
-  document.getElementById('download-code-hide').addEventListener('click',function () { hideCode(); codeStatus('Código ocultado. A permissão criada continua válida.'); codeControls(); });
+  document.getElementById('download-code-hide').addEventListener('click',function () { hideCode(); codeStatus('Tokens ocultados. Os acessos criados continuam válidos.'); codeControls(); });
   updateVisibility();
   renderAccessPreview();
   updatePlatformButtons();

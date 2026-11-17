@@ -31,7 +31,7 @@ const ids = Object.fromEntries([
   'access-form', 'release-form', 'private-password-fields', 'site-password', 'toggle-password',
   'release-version', 'release-notes', 'access-preview-status', 'access-preview-icon',
   'access-preview-description', 'summary-version', 'release-history-list', 'release-history-empty', 'release-history-count',
-  'universal-enabled','universal-key-settings','download-code-form','download-code-label','download-code-max','download-code-validity',
+  'universal-enabled','universal-key-settings','download-code-form','download-code-quantity','download-code-label','download-code-max','download-code-validity',
   'download-code-create','download-code-create-label','download-code-result','download-code-result-label','download-code-secret',
   'download-code-copy','download-code-hide','download-code-status','download-code-count','download-code-empty','download-code-list'
 ].map(id => [id, new Element()]));
@@ -41,9 +41,9 @@ const password = ids['site-password'];
 const version = ids['release-version'];
 const notes = ids['release-notes'];
 const universal=ids['universal-enabled'];universal.checked=true;
-const codeForm=ids['download-code-form'];ids['download-code-max'].value='1';ids['download-code-validity'].value='';
-codeForm.reportValidity=()=>['download-code-label','download-code-max','download-code-validity'].every(id=>!ids[id].validationMessage);
-codeForm.reset=()=>{ids['download-code-label'].value='';ids['download-code-max'].value='1';ids['download-code-validity'].value=''};
+const codeForm=ids['download-code-form'];ids['download-code-quantity'].value='1';ids['download-code-max'].value='1';ids['download-code-validity'].value='';
+codeForm.reportValidity=()=>['download-code-quantity','download-code-label','download-code-max','download-code-validity'].every(id=>!ids[id].validationMessage);
+codeForm.reset=()=>{ids['download-code-quantity'].value='1';ids['download-code-label'].value='';ids['download-code-max'].value='1';ids['download-code-validity'].value=''};
 const radios = ['public', 'private'].map(value => {
   const element = new Element(value); element.parent = new Element(); return element;
 });
@@ -155,37 +155,42 @@ async function accessCodeControls(){
  password.value='new-universal-key';password.emit('input');await submit(accessForm);assert.equal(calls.access.at(-1).universalEnabled,true);assert.equal(password.value,'');assert.equal(snapshot().settings.hasPassword,true);
  universal.checked=false;universal.emit('change');dispatch('invox:admin-state',{...server,settings:{...server.settings,universalEnabled:true}});assert.equal(universal.checked,false,'realtime keeps an unsaved universal toggle');
  failAccess=true;await submit(accessForm);assert.equal(snapshot().settings.universalEnabled,true,'failed save does not change the published preview');failAccess=false;await submit(accessForm);assert.equal(snapshot().settings.universalEnabled,false);
- const codeCalls=[],secretById=new Map();let rows=[],failCreation=false,revokeMode='ok';
+ const codeCalls=[],secretById=new Map(),batches=new Map();let rows=[],failCreation=false,revokeMode='ok',malformed=false;
  const rowCopies=()=>rows.map(row=>({...row}));
- backend.createDownloadCode=async payload=>{
-  codeCalls.push({...payload});let row=rows.find(item=>item.id===payload.id);
-  if(!row){row={id:payload.id,label:payload.label,maxUses:payload.maxUses,usedCount:0,remainingUses:payload.maxUses,createdAt:'2026-11-17T20:00:00Z',expiresAt:null,revokedAt:null,status:'active',prefix:'IVX-TEST'};rows.push(row);secretById.set(payload.id,'IVX-'+payload.id+'-SECRET');}
+ backend.createDownloadCodes=async payload=>{
+  codeCalls.push({...payload});let entries=batches.get(payload.id);
+  if(!entries){entries=Array.from({length:payload.count},()=>{const id=require('node:crypto').randomUUID();const row={id,label:payload.label,maxUses:payload.maxUses,usedCount:0,remainingUses:payload.maxUses,createdAt:'2026-11-17T20:00:00Z',expiresAt:null,revokedAt:null,status:'active',prefix:'IVX-TEST'};rows.push(row);secretById.set(id,'IVX-'+id+'-SECRET');return row});batches.set(payload.id,entries);}
   server.downloadCodes=rowCopies();if(failCreation){failCreation=false;throw Error('Conexão perdida');}
-  return {code:secretById.get(payload.id),entry:{...row},downloadCodes:rowCopies()};
+  return {codes:malformed?[]:entries.map(row=>secretById.get(row.id)),entries:entries.map(row=>({...row})),downloadCodes:rowCopies()};
  };
  backend.revokeDownloadCode=async id=>{if(revokeMode==='error')throw Error('offline');if(revokeMode==='ok'){const row=rows.find(item=>item.id===id);row.status='revoked';row.revokedAt='2026-11-17T21:00:00Z';}return{downloadCodes:rowCopies()}};
  const walk=node=>[node,...(node.childNodes||[]).flatMap(walk)];
  const revokeButton=id=>walk(ids['download-code-list']).find(node=>node.dataset?.revokeCode===id);
- assert.equal(ids['download-code-max'].value,'1');assert.equal(ids['download-code-validity'].value,'');
- ids['download-code-label'].value='<img src=x> Testador';ids['download-code-label'].emit('input');
- failCreation=true;await submit(codeForm);assert.equal(codeCalls.length,1);assert.equal(codeCalls[0].maxUses,1);assert.equal(codeCalls[0].validForHours,null);assert.equal(ids['download-code-secret'].value,'');assert.match(ids['download-code-status'].textContent,/perdida/);
+ assert.equal(ids['download-code-quantity'].value,'1');assert.equal(ids['download-code-max'].value,'1');assert.equal(ids['download-code-validity'].value,'');
+ ids['download-code-quantity'].value='3';ids['download-code-quantity'].emit('input');
+ failCreation=true;await submit(codeForm);assert.equal(codeCalls.length,1);assert.equal(codeCalls[0].count,3);assert.equal(codeCalls[0].label,'','only the quantity is needed');assert.equal(codeCalls[0].maxUses,1);assert.equal(codeCalls[0].validForHours,null);assert.equal(ids['download-code-secret'].value,'');assert.match(ids['download-code-status'].textContent,/perdida/);
  dispatch('invox:admin-state',server);assert.equal(ids['download-code-secret'].value,'','realtime never restores a full code from metadata');await submit(codeForm);
- assert.equal(codeCalls.length,2);assert.equal(codeCalls[0].id,codeCalls[1].id,'retry keeps the same creation UUID');assert.equal(rows.length,1);
- const firstId=codeCalls[1].id,firstSecret=secretById.get(firstId);assert.equal(ids['download-code-secret'].value,firstSecret);assert.equal(ids['download-code-result'].hidden,false);assert(!JSON.stringify(snapshot()).includes(firstSecret),'public UI state does not expose the one-time secret');assert(treeText(ids['download-code-list']).includes('<img src=x> Testador'),'labels are literal text');
- await ids['download-code-copy'].emit('click').completion;assert.equal(copied.at(-1),firstSecret);assert.match(ids['download-code-status'].textContent,/copiado/);
+ assert.equal(codeCalls.length,2);assert.equal(codeCalls[0].id,codeCalls[1].id,'retry keeps the same batch UUID');assert.equal(rows.length,3,'lost acknowledgement cannot duplicate a batch');
+ const firstEntries=batches.get(codeCalls[1].id),firstSecret=firstEntries.map(row=>secretById.get(row.id)).join('\n\n');assert(firstEntries.every(row=>row.id!==codeCalls[1].id),'entry UUIDs differ from the batch UUID');assert.equal(ids['download-code-secret'].value,firstSecret);assert.equal(ids['download-code-result'].hidden,false);assert(!JSON.stringify(snapshot()).includes(firstEntries.map(row=>secretById.get(row.id))[0]),'public UI state does not expose the one-time secrets');assert.equal(snapshot().downloadCodes.length,3,'every token remains in the metadata list');
+ await ids['download-code-copy'].emit('click').completion;assert.equal(copied.at(-1),firstSecret,'clipboard matches the tokens with one blank line between them');assert.equal(copied.at(-1).split('\n\n').length,3);assert.match(ids['download-code-status'].textContent,/copiados/);
  window.navigator.clipboard.writeText=async()=>{throw Error('permission denied')};Element.prototype.focus=function(){document.activeElement=this};Element.prototype.select=function(){this.selectionStart=0;this.selectionEnd=this.value.length};
  await ids['download-code-copy'].emit('click').completion;assert.match(ids['download-code-status'].textContent,/manualmente/);assert.equal(ids['download-code-secret'].value,firstSecret);
  ids['download-code-hide'].emit('click');assert.equal(ids['download-code-secret'].value,'');assert.equal(ids['download-code-result'].hidden,true);
+ for(const invalid of ['0','101','1.5']){ids['download-code-quantity'].value=invalid;ids['download-code-quantity'].emit('input');await submit(codeForm);assert.equal(codeCalls.length,2,'invalid token quantity does not call the backend');}
+ ids['download-code-quantity'].value='2';ids['download-code-quantity'].emit('input');
  ids['download-code-max'].value='1001';ids['download-code-max'].emit('input');await submit(codeForm);assert.equal(codeCalls.length,2,'out-of-range max does not request a code');
+ ids['download-code-label'].value='<img src=x> Testador';ids['download-code-label'].emit('input');
  ids['download-code-max'].value='5';ids['download-code-max'].emit('input');ids['download-code-validity'].value='168';ids['download-code-validity'].emit('change');
- failCreation=true;await submit(codeForm);const oldAttempt=codeCalls.at(-1).id;ids['download-code-max'].value='6';ids['download-code-max'].emit('input');await submit(codeForm);assert.notEqual(codeCalls.at(-1).id,oldAttempt,'changed parameters start a new creation intent');assert.equal(codeCalls.at(-1).maxUses,6);assert.equal(codeCalls.at(-1).validForHours,168);
- const lastId=codeCalls.at(-1).id;assert.equal(ids['download-code-secret'].value,secretById.get(lastId));revokeMode='unconfirmed';await revokeButton(lastId).emit('click').completion;assert.match(ids['download-code-status'].textContent,/não confirmou/);assert.equal(snapshot().downloadCodes.find(row=>row.id===lastId).status,'active','unconfirmed response cannot show a revoked code');
+ failCreation=true;await submit(codeForm);const oldAttempt=codeCalls.at(-1).id;ids['download-code-quantity'].value='4';ids['download-code-quantity'].emit('input');await submit(codeForm);assert.notEqual(codeCalls.at(-1).id,oldAttempt,'changed quantity starts a new batch intent');assert.equal(codeCalls.at(-1).count,4);assert.equal(codeCalls.at(-1).maxUses,5);assert.equal(codeCalls.at(-1).validForHours,168);assert(treeText(ids['download-code-list']).includes('<img src=x> Testador'),'labels are literal text');
+ const lastEntries=batches.get(codeCalls.at(-1).id),lastId=lastEntries[0].id,lastSecret=lastEntries.map(row=>secretById.get(row.id)).join('\n\n');assert.equal(ids['download-code-secret'].value,lastSecret);revokeMode='unconfirmed';await revokeButton(lastId).emit('click').completion;assert.match(ids['download-code-status'].textContent,/não confirmou/);assert.equal(snapshot().downloadCodes.find(row=>row.id===lastId).status,'active','unconfirmed response cannot show a revoked code');
  revokeMode='error';await revokeButton(lastId).emit('click').completion;assert.equal(snapshot().downloadCodes.find(row=>row.id===lastId).status,'active');
- revokeMode='ok';await revokeButton(lastId).emit('click').completion;assert.equal(snapshot().downloadCodes.find(row=>row.id===lastId).status,'revoked');assert.equal(ids['download-code-secret'].value,'');assert.equal(revokeButton(lastId),undefined);
+ revokeMode='ok';await revokeButton(lastId).emit('click').completion;assert.equal(snapshot().downloadCodes.find(row=>row.id===lastId).status,'revoked');assert.equal(ids['download-code-secret'].value,lastSecret,'revoking one entry does not discard the other generated tokens');assert.equal(revokeButton(lastId),undefined);
  const stale=rowCopies().map(row=>row.id===lastId?{...row,status:'active',revokedAt:null}:row);dispatch('invox:admin-state',{...server,downloadCodes:stale});assert.equal(snapshot().downloadCodes.find(row=>row.id===lastId).status,'revoked','stale realtime cannot reactivate a known revocation');
- ids['download-code-label'].value='Rascunho em edição';ids['download-code-label'].emit('input');ids['download-code-max'].value='9';ids['download-code-max'].emit('input');dispatch('invox:admin-state',{...server,downloadCodes:rowCopies()});assert.equal(ids['download-code-label'].value,'Rascunho em edição');assert.equal(ids['download-code-max'].value,'9');
- let finishCode;backend.createDownloadCode=payload=>new Promise(resolve=>{finishCode=()=>resolve({code:'LATE-SECRET',entry:{id:payload.id,label:payload.label,maxUses:payload.maxUses,usedCount:0,remainingUses:payload.maxUses,status:'active',createdAt:'2026-11-17T20:00:00Z',expiresAt:null,revokedAt:null},downloadCodes:[]})});
- const late=codeForm.emit('submit');assert.equal(snapshot().codeBusy,true);dispatch('invox:admin-clear');finishCode();await late.completion;assert.equal(ids['download-code-secret'].value,'');assert.equal(ids['download-code-result'].hidden,true);assert.equal(snapshot().downloadCodes.length,0);assert.equal(ids['download-code-max'].value,'1');assert.equal(ids['download-code-create'].disabled,true,'logout clears secrets and ignores late creation responses');
+ const confirmedBatch=codeCalls.at(-1).id;await submit(codeForm);assert.notEqual(codeCalls.at(-1).id,confirmedBatch,'a confirmed batch starts a fresh UUID on the next generation');
+ malformed=true;await submit(codeForm);const unconfirmedBatch=codeCalls.at(-1).id;assert.match(ids['download-code-status'].textContent,/confirmar/);assert.equal(ids['download-code-secret'].value,'','unconfirmed malformed responses never display a partial list');malformed=false;ids['download-code-quantity'].emit('input');await submit(codeForm);assert.equal(codeCalls.at(-1).id,unconfirmedBatch,'same parameters keep the retry UUID even after an input event');
+ ids['download-code-label'].value='Rascunho em edição';ids['download-code-label'].emit('input');ids['download-code-max'].value='9';ids['download-code-max'].emit('input');ids['download-code-quantity'].value='7';ids['download-code-quantity'].emit('input');dispatch('invox:admin-state',{...server,downloadCodes:rowCopies()});assert.equal(ids['download-code-label'].value,'Rascunho em edição');assert.equal(ids['download-code-max'].value,'9');assert.equal(ids['download-code-quantity'].value,'7');
+ let finishCode;backend.createDownloadCodes=payload=>new Promise(resolve=>{finishCode=()=>resolve({codes:Array.from({length:payload.count},(_,i)=>'LATE-SECRET-'+i),entries:Array.from({length:payload.count},()=>({id:require('node:crypto').randomUUID(),label:payload.label,maxUses:payload.maxUses,usedCount:0,remainingUses:payload.maxUses,status:'active',createdAt:'2026-11-17T20:00:00Z',expiresAt:null,revokedAt:null})),downloadCodes:[]})});
+ const late=codeForm.emit('submit');assert.equal(snapshot().codeBusy,true);dispatch('invox:admin-clear');finishCode();await late.completion;assert.equal(ids['download-code-secret'].value,'');assert.equal(ids['download-code-result'].hidden,true);assert.equal(snapshot().downloadCodes.length,0);assert.equal(ids['download-code-quantity'].value,'1');assert.equal(ids['download-code-max'].value,'1');assert.equal(ids['download-code-create'].disabled,true,'logout clears secrets and ignores late batch responses');
 }
 (async()=>{
  assert.equal(snapshot().settings.uploadLimitBytes,1610612736,'fallback permits 1.5GB before server settings arrive');
@@ -216,5 +221,5 @@ async function accessCodeControls(){
  dispatch('invox:admin-state',server);windows.input.files=[fixture('second.exe')];windows.input.emit('change');version.value='1.2.1';const second=releaseForm.emit('submit');assert.equal(pending.length,2);assert.equal(version.disabled,true);const currentStatus=ids['upload-status'].textContent;pending[0].payload.onStatus('stale update');assert.equal(ids['upload-status'].textContent,currentStatus);pending[0].resolve({platform:'windows',fileName:'first.exe',size:512,path:'fixture/first.exe'});await first.completion;assert.equal(version.disabled,true,'old finally cannot unlock a new session upload');
  pending[1].payload.onStatus('Verificando partes');assert.match(ids['upload-status'].textContent,/Windows: Verificando partes/);pending[1].resolve({kind:'multipart',uploadId:'fixture-id',platform:'windows',fileName:'second.exe',size:512,sha256:'fixture'});await second.completion;assert.equal(version.disabled,false);assert.equal(calls.releases.at(-1).files[0].kind,'multipart');dispatch('invox:admin-clear');
  await accessCodeControls();
- console.log('PASS connected settings: independent versions/history, universal toggle/key rotation, bounded download codes, one-time secret display, idempotent retry, revoke/copy confirmation, realtime drafts and logout.');
+ console.log('PASS connected settings: independent versions/history, universal key controls, token batches, exact list clipboard, one-time secrets, idempotent retry, revoke confirmation, realtime drafts and logout.');
 })().catch(error=>{console.error(error);process.exitCode=1});

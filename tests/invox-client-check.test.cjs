@@ -262,5 +262,34 @@ const ticket=(path='windows/1.1.0/upload-id/INVOX.exe')=>({path,token:'signed-up
   assert.deepEqual(h.state.fetchCalls.map(x=>x.body),[{action:'create-download-code',id,maxUses:1,label:'Teste',validForHours:null},{action:'revoke-download-code',id}]);
   checks.push('Download code creation and revocation require administrative authentication');
  }
+ {
+  const h=harness(),requestId='99999999-9999-4999-8999-999999999999',accessCode='INVOX-'+('a'.repeat(64));
+  const unwanted={token:'c'.repeat(64),expiresAt:new Date(Date.now()+86400000).toISOString()};
+  h.state.responses.push(ok({url:'fixture',accessMethod:'code',accessSession:unwanted}));
+  await h.api.download('windows','',{accessCode,requestId});
+  assert.deepEqual(h.state.fetchCalls[0].body,{action:'download',platform:'windows',accessCode,requestId});
+  assert.equal(h.api.hasDownloadSession(),false);
+  assert(!JSON.stringify(h.localStorage.entries()).includes(accessCode));
+  assert(!JSON.stringify(h.sessionStorage.entries()).includes(accessCode));
+  h.state.responses.push(ok({url:'fixture',accessMethod:'universal',accessSession:unwanted}));
+  await h.api.download('windows','',{accessCode:'fixture-universal-key',requestId});
+  assert.equal(h.api.hasDownloadSession(),true);
+  h.state.responses.push(ok({url:'fixture',accessMethod:'code'}));
+  await h.api.download('windows','',{accessCode,requestId});
+  assert(!Object.hasOwn(h.state.fetchCalls.at(-1).body,'accessToken'));
+  assert(!Object.hasOwn(h.state.fetchCalls.at(-1).body,'password'));
+  checks.push('Unified access field sends explicit credentials and persists only confirmed universal sessions');
+ }
+ {
+  const h=harness(),id='88888888-8888-4888-8888-888888888888';
+  const params={id,count:5,maxUses:1,label:'',validForHours:null};
+  await assert.rejects(()=>h.api.createDownloadCodes(params),e=>e.code==='unauthorized');
+  assert.equal(h.state.fetchCalls.length,0);
+  h.state.session=sessionFixture;h.state.responses.push(ok({codes:['fixture-1','fixture-2'],entries:[],downloadCodes:[]}));
+  await h.api.createDownloadCodes(params);
+  assert.deepEqual(h.state.fetchCalls[0].body,{action:'create-download-codes',...params});
+  assert.equal(h.state.fetchCalls[0].options.headers.Authorization,'Bearer access-token-fixture');
+  checks.push('Batch token generation requires authentication and forwards the exact immutable batch parameters');
+ }
  console.log(JSON.stringify({result:'PASS',checks},null,2));
 })().catch(error=>{console.error(error);process.exitCode=1;});

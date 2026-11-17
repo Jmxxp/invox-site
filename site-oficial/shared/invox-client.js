@@ -91,16 +91,18 @@
     analytics: (period = 'week') => request('analytics', { period }, { admin: true }),
     resetAnalytics: () => request('reset-analytics', {}, { admin: true }),
     async download(platform, password = '', options = {}) {
+      const unified = Object.prototype.hasOwnProperty.call(options, 'accessCode');
       const byCode = Object.prototype.hasOwnProperty.call(options, 'code');
-      const saved = byCode ? null : downloadSession();
+      const saved = unified || byCode ? null : downloadSession();
       const epoch = downloadSessionEpoch;
       try {
-        const credentials = byCode ? { code: options.code, requestId: options.requestId } : { password, ...(saved ? { accessToken: saved.token } : {}) };
+        const credentials = unified ? { accessCode: options.accessCode, requestId: options.requestId }
+          : byCode ? { code: options.code, requestId: options.requestId } : { password, ...(saved ? { accessToken: saved.token } : {}) };
         const result = await request('download', { platform, ...credentials });
-        if (!byCode && result.accessSession && epoch === downloadSessionEpoch) storeDownloadSession(result.accessSession);
+        if (!byCode && (!unified || result.accessMethod === 'universal') && result.accessSession && epoch === downloadSessionEpoch) storeDownloadSession(result.accessSession);
         return result;
       } catch (error) {
-        if (!byCode && epoch === downloadSessionEpoch && ['password_required', 'invalid_password', 'universal_disabled'].includes(error.code)) storeDownloadSession(null);
+        if (!unified && !byCode && epoch === downloadSessionEpoch && ['password_required', 'invalid_password', 'universal_disabled'].includes(error.code)) storeDownloadSession(null);
         throw error;
       }
     },
@@ -116,6 +118,7 @@
     adminState: () => request('admin-state', {}, { admin: true }),
     saveAccess: data => request('save-access', data, { admin: true }),
     createDownloadCode: data => request('create-download-code', data, { admin: true }),
+    createDownloadCodes: data => request('create-download-codes', data, { admin: true }),
     revokeDownloadCode: id => request('revoke-download-code', { id }, { admin: true }),
     saveRelease: data => request('save-release', data, { admin: true }),
     updateInstallerVersion: (platform, version) => request('update-installer-version', { platform, version }, { admin: true }),

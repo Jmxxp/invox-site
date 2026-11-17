@@ -29,9 +29,11 @@ As migrações `20261117193242_invox_game_feedback.sql` e `20261117194103_invox_
 No modo público, visitantes baixam sem senha. No privado, há duas formas de liberar downloads na área **Acesso ao site**:
 
 - **Chave universal:** pode ser ativada, desativada ou trocada. Uma chave nova exige pelo menos oito caracteres; deixar o campo em branco mantém a atual. A troca ou desativação invalida as autorizações universais anteriores.
-- **Códigos de download:** use **Gerar código**, copie o código completo e compartilhe com a pessoa autorizada. O padrão é **1 download**; é possível definir de 1 a 1000, com validade opcional. A lista mostra usos restantes, data, validade e revogação. O código completo só aparece na resposta à criação e não pode ser consultado depois na lista.
+- **Tokens de download:** informe a **Quantidade de tokens** e use **GERAR TOKENS** para criar de 1 a 100 de uma vez. **Copiar tokens** copia a lista sem numeração, com uma linha em branco entre os códigos. Em **Configurações dos tokens**, é possível informar uma identificação, validade opcional e de 1 a 1000 downloads por token; o padrão é **1 download**. A lista mostra usos restantes, data, validade e revogação. Os tokens completos só aparecem no resultado da geração e não podem ser consultados depois na lista.
 
 Cada uso corresponde à autorização de um download de uma plataforma. Partes de um mesmo instalador e retentativas da mesma transferência não gastam novos usos; uma autorização já emitida pode ser retomada por até oito horas. Revogar um código impede novas autorizações, preservando a transferência já liberada. Códigos não criam a sessão persistente da chave universal. Também é possível manter o site privado com a chave universal desativada e liberar somente por códigos.
+
+O site apresenta apenas o campo **CÓDIGO DE ACESSO:**, com o placeholder **Digite seu código de acesso**. O servidor reconhece a chave universal ou o token, sem pedir que o visitante escolha o tipo. Uma tentativa cujo resultado é desconhecido mantém o UUID para recuperar a mesma autorização, sem descontar outro uso.
 
 ## Versão e instaladores
 

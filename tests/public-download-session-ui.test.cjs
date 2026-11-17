@@ -20,15 +20,15 @@ function harness(){
  const events={},windowEvents={},downloads=[],calls=[];
  let grant=true,expired=false,logoutError=false;
  const signal=()=>{for(const callback of windowEvents['invox:download-session']||[])callback({});};
- const api={publicState:async()=>state,hasDownloadSession:()=>grant,download:async(platform,password='')=>{
+ const api={publicState:async()=>state,hasDownloadSession:()=>grant,download:async(platform,password='',options={})=>{
   calls.push(['download',platform,password]);
   if(expired){grant=false;signal();throw {code:'password_required'};}
-  if(password){grant=true;signal();}
-  return {url:'https://wsfdwyghqqaerivyrbil.supabase.co/storage/v1/object/sign/invox-installers/test.exe?token=fixture',fileName:'INVOX.exe'};
+  if(password||options.accessCode){grant=true;signal();}
+  return {url:'https://wsfdwyghqqaerivyrbil.supabase.co/storage/v1/object/sign/invox-installers/test.exe?token=fixture',fileName:'INVOX.exe',accessMethod:'universal'};
  },lockDownloads:async()=>{calls.push(['lock']);grant=false;signal();if(logoutError)throw Error('Offline');}};
  const document={activeElement:null,body:{append:element=>downloads.push(element)},getElementById:id=>ids[id],querySelector:()=>null,querySelectorAll:q=>q==='[data-download]'?links:q==='dialog'?[ids['notice-dialog'],ids['download-password-dialog']]:[],createElement:()=>new Node(),addEventListener:(name,callback)=>(events[name]||=[]).push(callback)};
  const window={InvoxBackend:api,addEventListener:(name,callback)=>(windowEvents[name]||=[]).push(callback)};
- vm.runInNewContext(source,{document,window,HTMLDialogElement:Node,HTMLElement:Node,Element:Node,URL});
+ vm.runInNewContext(source,{document,window,HTMLDialogElement:Node,HTMLElement:Node,Element:Node,URL,crypto:require('node:crypto').webcrypto});
  return {ids,links,state,downloads,calls,setGrant:value=>{grant=value;for(const callback of windowEvents.storage||[])callback({});},setExpired:value=>expired=value,setLogoutError:value=>logoutError=value};
 }
 (async()=>{

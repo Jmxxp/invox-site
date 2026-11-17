@@ -15,21 +15,22 @@ class Element {
   click() {} remove() {}
 }
 function harness({ universal = false, grant = false } = {}) {
-  const ids = Object.fromEntries(['download-status', 'download-retry', 'download-cancel', 'download-lock', 'download-password-dialog', 'download-password-form', 'download-password', 'download-password-status', 'download-password-submit', 'download-password-description', 'download-access-choices', 'download-access-universal', 'download-access-code', 'download-access-label', 'download-access-hint', 'download-code-cancel', 'notice-dialog', 'notice-title', 'notice-copy'].map(id => [id, new Element()]));
+  const ids = Object.fromEntries(['download-status', 'download-retry', 'download-cancel', 'download-lock', 'download-password-dialog', 'download-password-form', 'download-password', 'download-password-status', 'download-password-submit', 'download-password-description', 'download-access-label', 'download-code-cancel', 'notice-dialog', 'notice-title', 'notice-copy'].map(id => [id, new Element()]));
   const links = ['windows', 'macos', 'android'].map(platform => { const n = new Element(); n.dataset.download = platform; return n; });
   const state = { visibility: 'private', universalEnabled: universal, version: '1.1.0', platforms: [{ platform: 'windows', available: true }] };
   const calls = [], queue = [], files = [], helperCalls = [], events = {};
   let mode = 'success';
   const direct = { url: 'https://wsfdwyghqqaerivyrbil.supabase.co/storage/v1/object/sign/invox-installers/fixture.exe?token=fixture', fileName: 'INVOX.exe' };
-  const multipart = { kind: 'multipart', ticket: 'a'.repeat(64), fileName: 'INVOX.exe', size: 10, parts: [] };
+  const multipart = { kind: 'multipart', ticket: 'a'.repeat(64), fileName: 'INVOX.exe', size: 10, parts: [], accessMethod: 'code' };
   const api = {
     publicState: async () => structuredClone(state), hasDownloadSession: () => grant,
     async download(platform, password = '', options) {
       calls.push({ platform, password, options: options ? { ...options } : null });
       const response = queue.length ? await queue.shift() : direct;
       if (response?.error) throw response.error;
-      if (password) grant = true;
-      return response;
+      const method = response?.accessMethod || (options?.accessCode === 'universal-fixture' ? 'universal' : 'code');
+      if (method === 'universal') grant = true;
+      return response === direct ? { ...response, accessMethod: method } : response;
     },
     downloadPart: async () => ({}), lockDownloads: async () => { grant = false; }
   };
@@ -53,9 +54,9 @@ function harness({ universal = false, grant = false } = {}) {
 (async () => {
   const h = harness({ grant: true }); await tick(); await h.links[0].emit('click');
   assert.equal(h.calls.length, 0, 'disabled universal ignores an old persistent grant');
-  assert.equal(h.ids['download-access-universal'].hidden, true); assert.equal(h.ids['download-password'].type, 'text');
+  assert.equal(h.ids['download-password'].type, 'password'); assert.equal(h.ids['download-password'].placeholder, 'Digite seu código de acesso');
   assert.equal(h.ids['download-lock'].hidden, true);
-  await h.enter(); assert.equal(h.calls[0].password, ''); assert.equal(h.calls[0].options.code, 'fixture-code');
+  await h.enter(); assert.equal(h.calls[0].password, ''); assert.equal(h.calls[0].options.accessCode, 'fixture-code');
   assert.match(h.calls[0].options.requestId, /^[a-f0-9-]{36}$/); assert.equal(h.ids['download-password'].value, '');
   assert.equal(h.ids['download-password-dialog'].open, false);
   await h.links[0].emit('click'); assert.equal(h.ids['download-password-dialog'].open, true);
@@ -73,13 +74,13 @@ function harness({ universal = false, grant = false } = {}) {
   await cancelled.ids['download-code-cancel'].emit('click');
   await cancelled.links[0].emit('click'); await cancelled.enter('fresh-fixture');
   assert.notEqual(cancelled.calls[0].options.requestId, cancelled.calls[1].options.requestId);
-  assert.equal(cancelled.calls[1].options.code, 'fresh-fixture');
+  assert.equal(cancelled.calls[1].options.accessCode, 'fresh-fixture');
   const late = harness(); let finishLate; await tick(); await late.links[0].emit('click');
   late.queue.push(new Promise(resolve => { finishLate = resolve; })); const pendingLate = late.enter('late-fixture'); await tick();
   await late.ids['download-password-dialog'].close(); finishLate({ error: { code: 'offline', status: 0 } }); await pendingLate;
   await late.links[0].emit('click'); await late.enter('next-fixture');
   assert.notEqual(late.calls[0].options.requestId, late.calls[1].options.requestId, 'a cancelled late response cannot restore the old attempt');
-  assert.equal(late.calls[1].options.code, 'next-fixture');
+  assert.equal(late.calls[1].options.accessCode, 'next-fixture');
   for (const [code, status] of [['invalid_code', 403], ['code_exhausted', 403], ['code_revoked', 403], ['code_expired', 403], ['download_expired', 401], ['download_changed', 409]]) {
     const terminal = harness(); await tick(); await terminal.links[0].emit('click');
     terminal.queue.push({ error: { code, status } }); await terminal.enter();
@@ -91,10 +92,20 @@ function harness({ universal = false, grant = false } = {}) {
   }
   const normal = harness({ universal: true }); await tick(); await normal.links[0].emit('click');
   assert.equal(normal.ids['download-password'].type, 'password');
-  await normal.enter('universal-fixture'); assert.equal(normal.calls[0].options, null); assert.equal(normal.grant(), true);
+  await normal.enter('universal-fixture'); assert.equal(normal.calls[0].options.accessCode, 'universal-fixture'); assert.equal(normal.calls[0].password, ''); assert.equal(normal.grant(), true);
+  const universalRecovery = harness({ universal: true }); await tick(); await universalRecovery.links[0].emit('click');
+  universalRecovery.queue.push({ error: { code: 'offline', status: 0 } }); await universalRecovery.enter('universal-fixture'); await universalRecovery.enter();
+  assert.deepEqual(universalRecovery.calls[0].options, universalRecovery.calls[1].options, 'universal credentials keep the same recovery UUID too');
+  assert.equal(universalRecovery.grant(), true);
+  const looksLikeToken = harness({ universal: true }); await tick(); await looksLikeToken.links[0].emit('click');
+  looksLikeToken.queue.push({ url: 'https://wsfdwyghqqaerivyrbil.supabase.co/storage/v1/object/sign/invox-installers/fixture.exe?token=fixture', accessMethod: 'universal' });
+  await looksLikeToken.enter('INVOX-FIXTURE-UNIVERSAL'); assert.equal(looksLikeToken.grant(), true, 'only the server result determines the access method');
+  assert.equal(looksLikeToken.calls[0].options.accessCode, 'INVOX-FIXTURE-UNIVERSAL');
+  const raw = harness({ universal: true }); await tick(); await raw.links[0].emit('click'); await raw.enter(' credential with spaces ');
+  assert.equal(raw.calls[0].options.accessCode, ' credential with spaces ', 'the UI does not normalize a potentially exact universal credential');
   const choose = harness({ universal: true }); await tick(); await choose.links[0].emit('click');
-  await choose.ids['download-access-code'].emit('click'); await choose.enter();
-  assert.equal(choose.calls[0].password, ''); assert.equal(choose.calls[0].options.code, 'fixture-code'); assert.equal(choose.grant(), false);
+  await choose.enter();
+  assert.equal(choose.calls[0].password, ''); assert.equal(choose.calls[0].options.accessCode, 'fixture-code'); assert.equal(choose.grant(), false);
   for (const mode of ['network', 'save']) {
     const retry = harness(); await tick(); await retry.links[0].emit('click'); retry.queue.push(retry.multipart); retry.mode(mode); await retry.enter();
     assert.equal(retry.ids['download-password-dialog'].open, false); assert.equal(retry.calls.length, 1);
@@ -109,7 +120,10 @@ function harness({ universal = false, grant = false } = {}) {
   assert.equal(active.calls.length, 1); assert.equal(active.helperCalls.length, 1, 'cancel clears the authorized retry ticket');
   const deniedUniversal = harness({ universal: true }); await tick(); await deniedUniversal.links[0].emit('click');
   deniedUniversal.queue.push({ error: { code: 'universal_disabled', status: 401 } }); await deniedUniversal.enter('old-key');
-  assert.equal(deniedUniversal.ids['download-access-universal'].hidden, true); assert.equal(deniedUniversal.ids['download-password'].type, 'text');
+  assert.equal(deniedUniversal.ids['download-password'].type, 'password'); assert.match(deniedUniversal.ids['download-password-status'].textContent, /código de acesso/);
+  const html = fs.readFileSync('site-oficial/index.html', 'utf8');
+  assert.match(html, /CÓDIGO DE ACESSO:/); assert.match(html, /placeholder="Digite seu código de acesso"/);
+  assert(!/download-access-choices|download-access-universal|download-access-code|Chave universal/.test(html), 'only one access field is presented');
   assert(!/localStorage|sessionStorage/.test(source), 'access codes are not persisted by the UI');
-  console.log('PASS public download codes: per-attempt UUID, lost-response recovery, cancellation, terminal errors, universal fallback and ticket-only multipart/FSA retries.');
+  console.log('PASS unified public access: single field, server-selected method, per-attempt UUID for both credential types, lost-response recovery, cancellation and ticket-only multipart/FSA retries.');
 })().catch(error => { console.error(error); process.exitCode = 1; });
