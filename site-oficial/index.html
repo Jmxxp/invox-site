@@ -73,9 +73,11 @@
   <link rel="stylesheet" href="modes.css?v=20261117-mode-borders">
   <link rel="stylesheet" href="hero.css?v=20261117-scale-position">
   <script src="config.js" defer></script>
-  <script src="shared/invox-client.js?v=20261117-counting-sessions" defer></script>
+  <script src="shared/vendor/sha256.umd.min.js" defer></script>
+  <script src="shared/invox-client.js?v=20261117-multipart" defer></script>
   <script src="analytics.js" defer></script>
-  <script src="script.js?v=20261117-availability" defer></script>
+  <script src="download-multipart.js?v=20261117-multipart" defer></script>
+  <script src="script.js?v=20261117-multipart" defer></script>
   <script src="lobby.js?v=20261117-original-fixed-camera" defer></script>
   <script src="effects.js" defer></script>
   <script src="modes.js?v=20261117-original-modes" defer></script>
@@ -135,7 +137,7 @@
             <a class="download-card download-android" href="#" data-download="android" data-available="false" aria-disabled="true" tabindex="-1" aria-describedby="download-android-version" aria-label="Baixar INVOX para Android"><span class="download-sheen" aria-hidden="true"></span><i class="fa-brands fa-android platform-icon" aria-hidden="true"></i><span class="download-label"><strong>INVOX</strong><span>Android</span></span></a>
           </article>
         </div>
-        <div class="download-service"><p id="download-status" role="status" aria-live="polite">Consultando os instaladores...</p><button id="download-retry" type="button" hidden><i class="fa-solid fa-rotate-right" aria-hidden="true"></i>Tentar novamente</button><button id="download-lock" type="button" hidden><i class="fa-solid fa-lock" aria-hidden="true"></i>Encerrar acesso privado</button></div>
+        <div class="download-service"><p id="download-status" role="status" aria-live="polite">Consultando os instaladores...</p><button id="download-retry" type="button" hidden><i class="fa-solid fa-rotate-right" aria-hidden="true"></i><span data-download-retry-label>Tentar novamente</span></button><button id="download-cancel" type="button" hidden><i class="fa-solid fa-xmark" aria-hidden="true"></i>Cancelar download</button><button id="download-lock" type="button" hidden><i class="fa-solid fa-lock" aria-hidden="true"></i>Encerrar acesso privado</button></div>
       </section>
 <section class="about-game wrap" id="sobre" aria-labelledby="game-title">
   <div class="game-intro">

@@ -24,6 +24,8 @@
   let releaseDirty = false;
   let busy = false;
   let sessionEpoch = 0;
+  let uploadController = null;
+  let savedStorage = null;
   const uploaded = {};
 
 
@@ -102,8 +104,10 @@
       if (epoch === sessionEpoch) toast(error.message || 'Não foi possível salvar o acesso.', 'error');
     } finally {
       payload.password = '';
-      busy = false;
-      setBusy(accessForm, false);
+      if (epoch === sessionEpoch) {
+        busy = false;
+        setBusy(accessForm, false);
+      }
     }
   });
 
@@ -207,6 +211,8 @@
     const releaseVersion = version.value;
     const releaseNotes = notes.value.trim();
     const epoch = sessionEpoch;
+    const controller = new AbortController();
+    uploadController = controller;
     const progressBox = document.getElementById('release-progress');
     const progress = document.getElementById('upload-progress');
     const status = document.getElementById('upload-status');
@@ -221,7 +227,9 @@
         const file = files[platform];
         status.textContent = 'Enviando ' + platforms[platform].label + ' (' + (index + 1) + '/' + selected.length + ')…';
         if (!uploaded[platform] || uploaded[platform].file !== file || uploaded[platform].version !== releaseVersion) {
-          const metadata = await window.InvoxBackend.uploadInstaller({platform:platform,file:file,version:releaseVersion,onProgress:function (percent) {
+          const metadata = await window.InvoxBackend.uploadInstaller({platform:platform,file:file,version:releaseVersion,uploadLimitBytes:savedSettings.uploadLimitBytes,objectUploadLimitBytes:savedSettings.objectUploadLimitBytes,signal:controller.signal,onStatus:function (message) {
+            if (epoch === sessionEpoch) status.textContent = platforms[platform].label + ': ' + message;
+          },onProgress:function (percent) {
             if (epoch !== sessionEpoch) return;
             if (Number.isFinite(percent)) progress.value = Math.max(0, Math.min(100, percent));
           }});
@@ -245,13 +253,17 @@
       status.textContent = 'A publicação não foi concluída. Sua seleção foi preservada para tentar novamente.';
       toast(error.message || 'Não foi possível publicar a versão.', 'error');
     } finally {
-      busy = false;
-      setBusy(releaseForm, false);
+      if (uploadController === controller) uploadController = null;
+      if (epoch === sessionEpoch) {
+        busy = false;
+        setBusy(releaseForm, false);
+      }
     }
   });
 
   function loadState(state) {
     savedSettings = Object.assign({}, savedSettings, state.settings);
+    if (state.storage) savedStorage = Object.assign({}, state.storage);
     if (!accessDirty) {
       radios.forEach(function (radio) { radio.checked = radio.value === savedSettings.visibility; });
       password.value = '';
@@ -261,7 +273,14 @@
       notes.value = savedSettings.releaseNotes || '';
     }
     document.getElementById('summary-version').textContent = savedSettings.version;
-    document.getElementById('upload-limit').textContent = 'Limite por arquivo: ' + formatBytes(savedSettings.uploadLimitBytes) + '. Arquivos novos substituem a plataforma selecionada após publicar.';
+    const uploadHelp = ['Limite por instalador: ' + formatBytes(savedSettings.uploadLimitBytes) + '.'];
+    if (savedSettings.multipartPartSizeBytes) uploadHelp.push('Arquivos grandes são enviados em partes de ' + formatBytes(savedSettings.multipartPartSizeBytes) + ', com retomada.');
+    if (savedStorage && Number.isFinite(savedStorage.availableBytes)) {
+      uploadHelp.push('Espaço disponível para novos envios: ' + formatBytes(Math.max(0, savedStorage.availableBytes)) + '.');
+      if (savedStorage.reservedBytes > 0) uploadHelp.push(formatBytes(savedStorage.reservedBytes) + ' reservados para envios em andamento.');
+      uploadHelp.push('A versão anterior é preservada até concluir a publicação.');
+    }
+    document.getElementById('upload-limit').textContent = uploadHelp.join(' ');
     Object.keys(platforms).forEach(function (platform) {
       const card = fileElements(platform).dropzone.closest('.upload-card');
       let current = card.querySelector('.current-installer');
@@ -273,7 +292,11 @@
     renderAccessPreview();
   }
   function clear() {
+    if (uploadController) uploadController.abort();
+    uploadController = null;
     sessionEpoch += 1;
+    busy = false;
+    savedStorage = null;
     accessForm.reset();
     releaseForm.reset();
     savedSettings = {visibility:'public',hasPassword:false,version:'1.1.0',releaseNotes:'',uploadLimitBytes:defaultUploadLimitBytes};
@@ -293,6 +316,9 @@
     document.querySelectorAll('.current-installer').forEach(function (element) { element.textContent = ''; });
     document.getElementById('release-progress').hidden = true;
     document.getElementById('upload-status').textContent = '';
+    document.getElementById('upload-limit').textContent = 'Conferindo limite de envio…';
+    setBusy(accessForm, false);
+    setBusy(releaseForm, false);
     updateVisibility();
   }
   window.AdminSettings = {clear:clear,getState:function () {

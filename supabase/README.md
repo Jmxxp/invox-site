@@ -2,7 +2,7 @@
 
 Projeto ativo: `wsfdwyghqqaerivyrbil`. Banco, bucket privado e função `invox-api` implantados em **17/11/2026**. O administrador `jmxxp` está cadastrado no Supabase Auth e autorizado no servidor. A configuração atual usa versão **1.1.0**, acesso público e aguarda os instaladores reais.
 
-As migrações `20261117121558_invox_backend_init.sql`, `20261117124106_invox_analytics.sql`, `20261117125912_invox_download_sessions.sql` e `20261117175159_invox_analytics_generations.sql` estão aplicadas. `schema.sql` preserva o snapshot completo sem credenciais; em um banco existente, use apenas migrações pendentes.
+As migrações `20261117121558_invox_backend_init.sql`, `20261117124106_invox_analytics.sql`, `20261117125912_invox_download_sessions.sql`, `20261117175159_invox_analytics_generations.sql` e `20261117190431_invox_multipart_installers.sql` estão aplicadas. `schema.sql` preserva o snapshot completo sem credenciais; em um banco existente, use apenas migrações pendentes.
 
 ## Instalação em um banco vazio
 
@@ -16,17 +16,21 @@ Todas as tabelas possuem RLS e negam acesso direto a `anon` e `authenticated`. A
 
 ## Instaladores e liberação
 
-O limite ativo é **50 MiB** por arquivo. O código aceita configurar até **1,5 GB (1.610.612.736 bytes)** por `INVOX_UPLOAD_LIMIT_BYTES` quando banco e Storage suportarem esse tamanho; valores ausentes ou inválidos preservam o padrão de 50 MiB. Os formatos são EXE/MSI/ZIP no Windows, DMG/PKG/ZIP no macOS e APK no Android. O bucket `invox-installers` permanece privado e aceita apenas `application/octet-stream`.
+O painel aceita instaladores de até **1,5 GiB (1.610.612.736 bytes)**. Arquivos grandes são divididos em **partes de 20 MiB**, cada uma armazenada como objeto privado separado. O limite global de 50 MiB por objeto permanece. Os formatos continuam EXE/MSI/ZIP, DMG/PKG/ZIP e APK.
 
-**Proposta não aplicada:** em 17/11/2026 a Management API confirmou que a organização `dhkdnkulbjafrouchbqy` está no plano Free, com limite global e bucket de 52.428.800 bytes. A proposta `proposals/invox_installer_limit_1_5gb.sql` permanece fora da cadeia de migrações ativas. O painel usa o limite informado pelo servidor, portanto não anuncia 1,5 GB enquanto o armazenamento ativo ainda bloqueia esse tamanho.
+O novo bucket privado `invox-installer-parts` tem limite de 20 MiB e MIME `application/octet-stream` e deve ser criado pela Storage API. O bucket legado `invox-installers` continua privado, com 50 MiB. A proposta antiga em `proposals/` não é necessária para o fluxo multipart.
 
-Para liberar o novo limite, é necessário um plano compatível. Depois, configure `fileSizeLimit` global em 1.610.612.736 bytes, promova a proposta para uma nova migração e configure o mesmo limite na função. Confirme o limite global, o bucket, as duas restrições de tamanho, a RPC de publicação e `admin-state` antes de enviar um instalador grande. Consulte os [limites do Supabase](https://supabase.com/docs/guides/storage/uploads/file-limits).
+A capacidade total continua contando. O orçamento conservador do servidor é **1.000.000.000 bytes** neste projeto. `INVOX_STORAGE_BUDGET_BYTES` só deve aumentar após confirmar uma capacidade real maior. O painel mostra espaço disponível e reservas transacionais, incluindo a capacidade integral da última parte. A versão nova precisa caber junto com a anterior durante a publicação. Um instalador de 1,5 GiB não cabe em 1 GB de armazenamento total. Consulte os [limites](https://supabase.com/docs/guides/storage/uploads/file-limits) e as [cotas](https://supabase.com/pricing).
 
-Arquivos de até 6 MiB usam PUT assinado. Os maiores usam TUS com blocos de 6 MiB, progresso e retentativas em memória, sem carregar o arquivo inteiro em um ArrayBuffer. A biblioteca oficial `tus-js-client` 4.3.1 está fixada em `shared/vendor/`, com licença e integridade verificadas. O token de upload não é persistido no navegador; a retomada ocorre durante as tentativas da mesma transferência. O token assinado vale duas horas; uma tentativa após sua expiração pode exigir um novo envio autorizado.
+O envio usa TUS em blocos de 6 MiB; o legado até 6 MiB usa PUT assinado. Após recarregar o painel, selecione novamente o mesmo arquivo, plataforma e versão para aproveitar as partes verificadas. Tokens não são persistidos e sair do painel interrompe o envio. O hash incremental lê blocos de 1 MiB. SDKs TUS 4.3.1 e hash-wasm 4.13.0 estão fixados localmente, com licenças e integridade verificadas.
 
-Políticas restritivas para esse bucket impedem que regras amplas existentes abram os arquivos para clientes. Outros buckets não são afetados. O servidor emite tokens de upload para caminhos novos e URLs de download de curta duração. O modo privado valida a senha no servidor antes de emitir a URL; seu hash nunca é retornado. Uma URL já emitida permanece válida até vencer.
+Tokens assinados usam o endpoint TUS `/storage/v1/upload/resumable/sign`. A rota sem `/sign` é a de JWT/RLS e não autoriza esses uploads. O cliente valida também o host e a rota de cada `Location` antes de enviar novos blocos.
 
-A publicação confere o manifesto contra `invox_uploads`: administrador, plataforma, caminho, nome, tamanho e versão. A API também confirma o tamanho real do objeto no Storage antes da transação. Plataformas omitidas preservam o instalador anterior. Arquivos antigos e uploads abandonados não são excluídos automaticamente; a limpeza deve respeitar os objetos ainda referidos por `invox_installers`.
+A API confere tamanho e SHA-256 dos bytes de cada parte. O banco fixa identidade e versão dos objetos e só publica manifestos completos. A troca é atômica e mantém plataformas omitidas. A limpeza respeita referências, downloads ativos e validade de autorizações.
+
+No site, um ticket opaco de oito horas autoriza as partes; URLs assinadas de 60 segundos são emitidas quando necessárias. A página reúne o arquivo em fluxo, verifica cada parte e só libera a última após conferir o SHA-256 completo. Não há Blob do instalador inteiro. O navegador precisa suportar streams transferíveis com Service Worker ou File System Access. Mantenha a aba aberta; há cancelamento da transferência.
+
+Os dois buckets continuam privados. Alterar acesso ou senha invalida tickets multipart; uma URL de parte já emitida pode durar até seu vencimento. O hash da senha nunca é retornado.
 
 ## Funções do banco
 
@@ -39,7 +43,9 @@ As funções usam `SECURITY INVOKER`, `search_path` vazio e permissão de execu�
 
 Além dos testes isolados, a implantação real passou em login, autorização administrativa, CORS de `http://127.0.0.1:5500`, envio e classificação de feedback, upload, publicação de versão, download público e download privado por senha. O arquivo e o feedback temporários foram removidos.
 
-As nove tabelas usam RLS, sem permissões diretas para visitantes, com RPCs restritas ao servidor e bucket privado. Os advisors não apontaram erros. Permanece um aviso de [proteção contra senhas vazadas desativada](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection); a disponibilidade dessa opção depende da configuração e do plano do projeto.
+A implantação multipart foi validada com **64 MiB reais**, em quatro objetos (20 + 20 + 20 + 4 MiB), via TUS assinado. Foram confirmadas a retomada da mesma sessão, a recuperação de confirmação perdida e a reconstrução por URLs assinadas, com SHA-256 idêntico ao original. O preview administrativo não publicou esse arquivo nas plataformas. Objetos, metadados, reservas e sessão temporária de teste foram removidos; o projeto voltou a zero bytes usados e reservados. A gravação do teste usou o helper real com sink de arquivo no Node; não houve teste interativo em navegador físico nesta sessão.
+
+Todas as tabelas usam RLS, sem permissões diretas para visitantes, com RPCs restritas ao servidor e bucket privado. Os advisors não apontaram erros. Permanece um aviso de [proteção contra senhas vazadas desativada](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection); a disponibilidade dessa opção depende da configuração e do plano do projeto.
 
 ## Análises
 

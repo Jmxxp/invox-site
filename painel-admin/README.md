@@ -26,4 +26,6 @@ Edite a versão no formato `1.1.0` e as novidades. Selecione ou arraste os insta
 
 O limite por arquivo vem do servidor e aparece acima dos cartões. O envio acontece para armazenamento privado, sem executar os instaladores. Se a publicação falhar, a seleção permanece para tentar novamente. Um arquivo enviado só fica disponível no site depois de a publicação ser confirmada.
 
+Instaladores grandes são armazenados em partes de 20 MiB, com hashes e retomada. Após recarregar, selecione novamente o mesmo arquivo e versão para aproveitar as partes já confirmadas. O painel mostra a capacidade disponível, que precisa comportar a versão anterior e a nova durante a troca. O teto lógico de 1,5 GiB não aumenta a cota total do projeto.
+
 As credenciais administrativas e chaves de serviço não devem ser incluídas nos arquivos públicos. O navegador recebe somente URL e chave publicável; as operações administrativas exigem sessão válida e permissão de administrador.

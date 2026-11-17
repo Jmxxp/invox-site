@@ -173,6 +173,16 @@ const ticket=(path='windows/1.1.0/upload-id/INVOX.exe')=>({path,token:'signed-up
   checks.push('Page view tracking is anonymous/keepalive; analytics report requires admin session');
  }
  {
+  const {api,state,localStorage}=harness();state.session=sessionFixture;
+  state.responses.push(ok({url:'part-signed-url',expiresAt:'2026-11-17T19:00:00Z'}));
+  await api.downloadPart('opaque-download-ticket',2);
+  assert.deepEqual(state.fetchCalls[0].body,{ticket:'opaque-download-ticket',index:2,action:'download-part'});
+  assert.equal(state.fetchCalls[0].options.headers.Authorization,undefined);
+  assert.equal(state.fetchCalls[0].options.cache,'no-store');assert.equal(state.fetchCalls[0].options.credentials,'omit');
+  assert.equal(localStorage.getItem('invox-download-access-wsfdwyghqqaerivyrbil-v1'),null);
+  checks.push('Multipart part signing is public and scoped to its opaque ticket/index without admin Bearer or ticket persistence');
+ }
+ {
   const key='invox-admin-auth-v1',raw=JSON.stringify(sessionFixture);
   const local=storage(),legacy=storage({[key]:raw});
   const first=harness({localStorage:local,sessionStorage:legacy});

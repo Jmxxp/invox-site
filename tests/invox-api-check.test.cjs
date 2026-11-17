@@ -30,6 +30,9 @@ function harness(options={}){
   logs.rpc.push([name,args]);
   if(name==='invox_take_rate_limit')return {data:controls.rate,error:controls.rateError?{message:'SQL SECRET'}:null};
   if(name==='invox_record_analytics')return {data:true,error:null};
+  if(name==='invox_multipart_cleanup_due')return {data:[],error:null};
+  if(name==='invox_storage_status')return {data:{capacityBytes:args.p_budget_bytes,usedBytes:0,reservedBytes:0,availableBytes:args.p_budget_bytes,cleanupPendingBytes:0},error:null};
+  if(name==='invox_reserve_single_upload'){db.invox_uploads.push({path:args.p_path,platform:args.p_platform,file_name:args.p_file_name,size:args.p_size,version:args.p_version,created_by:args.p_admin_id});return {data:null,error:null};}
   if(name==='invox_create_download_session')return {data:'2026-12-16T00:00:00Z',error:null};
   if(name==='invox_publish_release'){
    Object.assign(db.invox_site_settings[0],{version:args.p_version,release_notes:args.p_release_notes});
@@ -53,7 +56,7 @@ module.exports=(async()=>{
  assert.equal(deniedFallback.status,403);assert.equal(deniedFallback.headers.get('Access-Control-Allow-Origin'),null);
  const h=harness();let response=await h.call('state');assert.equal(response.status,200);assert.equal(response.body.version,'1.1.0');assert.equal(response.body.platforms[0].available,true);assert(!response.text.includes('windows/1.1.0/'));assert(!response.text.includes('password_hash'));assert.equal(response.headers.get('Cache-Control'),'no-store');assert.equal(response.headers.get('Access-Control-Allow-Origin'),'https://jmxxp.github.io');
  response=await h.call('admin-state');assert.equal(response.status,401);assert.equal(h.logs.auth.length,0);
- response=await h.call('admin-state',{},true);assert.equal(response.status,200);assert.equal(response.body.admin.username,'admin');assert.equal(response.body.settings.uploadLimitBytes,52428800);assert.equal(response.body.installers[0].path,'windows/1.1.0/test.exe');
+ response=await h.call('admin-state',{},true);assert.equal(response.status,200);assert.equal(response.body.admin.username,'admin');assert.equal(response.body.settings.uploadLimitBytes,1610612736);assert.equal(response.body.settings.objectUploadLimitBytes,52428800);assert.equal(response.body.settings.multipartPartSizeBytes,20971520);assert.equal(response.body.installers[0].path,'windows/1.1.0/test.exe');
  h.controls.user={id:'44444444-4444-4444-8444-444444444444',email:'attacker@example.test',email_confirmed_at:'now',user_metadata:{admin:true}};response=await h.call('admin-state',{},true);assert.equal(response.status,403);h.controls.user={id:ADMIN,email:'admin@example.test',email_confirmed_at:null};response=await h.call('admin-state',{},true);assert.equal(response.status,401);h.controls.user={id:ADMIN,email:'admin@example.test',email_confirmed_at:'now'};
  response=await h.call('login',{username:'admin',password:'wrong'});assert.equal(response.status,401);assert.equal(response.body.error.message,'Usuário ou senha inválidos.');response=await h.call('login',{username:'missing',password:'wrong'});assert.equal(response.status,401);assert.equal(response.body.error.message,'Usuário ou senha inválidos.');response=await h.call('login',{username:'ADMIN',password:'fake-admin-password'});assert.equal(response.status,200);assert.equal(response.body.session.access_token,'fake-access');assert.equal(h.logs.anonymousAuth.length,2);
  response=await h.call('download',{platform:'windows'});assert.equal(response.status,200);assert.equal(h.logs.sign.at(-1).expires,60);assert.equal(h.logs.sign.at(-1).options.download,'INVOX-1.1.0.exe');
@@ -84,26 +87,21 @@ module.exports=(async()=>{
  large.controls.user={id:'44444444-4444-4444-8444-444444444444',email:'attacker@example.test',email_confirmed_at:'now',user_metadata:{admin:true}};
  response=await large.call('create-upload',{...file,size:uploadCap},true);assert.equal(response.status,403);assert.equal(large.db.invox_uploads.length,0);assert.equal(large.logs.upload.length,0);
  large.controls.user={id:ADMIN,email:'admin@example.test',email_confirmed_at:'now'};
- for(const size of [50*1024*1024+1,uploadCap]){
-  const installer={...file,fileName:`INVOX-${size}.exe`,size};
-  response=await large.call('create-upload',installer,true);assert.equal(response.status,200);assert.equal(response.body.token,'fake-upload-token');assert(response.body.signedUrl.includes('/object/upload/sign/invox-installers/'));assert.equal(large.logs.upload.at(-1).options.upsert,false);assert.equal(large.db.invox_uploads.at(-1).size,size);assert.equal(large.db.invox_uploads.at(-1).created_by,ADMIN);
-  const uploaded={platform:installer.platform,path:response.body.path,fileName:installer.fileName,size};large.controls.storageSize=size;
-  response=await large.call('save-release',{version:installer.version,releaseNotes:'Large installer boundary.',files:[uploaded]},true);assert.equal(response.status,200);assert.equal(response.body.settings.uploadLimitBytes,uploadCap);assert.equal(response.body.installers.find(item=>item.platform==='windows').size,size);
- }
+ for(const size of [50*1024*1024+1,uploadCap]){response=await large.call('create-upload',{...file,size},true);assert.equal(response.status,400);assert.equal(large.logs.upload.length,0);}
  const authorizedCount=large.db.invox_uploads.length,signedCount=large.logs.upload.length,publishedCount=large.logs.rpc.filter(([name])=>name==='invox_publish_release').length;
  response=await large.call('create-upload',{...file,size:uploadCap+1},true);assert.equal(response.status,400);assert.equal(large.db.invox_uploads.length,authorizedCount);assert.equal(large.logs.upload.length,signedCount);
  response=await large.call('save-release',{version:file.version,releaseNotes:'',files:[{platform:file.platform,path:'windows/1.1.0/oversized.exe',fileName:file.fileName,size:uploadCap+1}]},true);assert.equal(response.status,400);assert.equal(large.logs.rpc.filter(([name])=>name==='invox_publish_release').length,publishedCount);
  const live=harness(),liveCap=50*1024*1024;
  response=await live.call('create-upload',{...file,size:liveCap},true);assert.equal(response.status,200);const livePath=response.body.path;live.controls.storageSize=liveCap;
- response=await live.call('save-release',{version:file.version,releaseNotes:'',files:[{platform:file.platform,path:livePath,fileName:file.fileName,size:liveCap}]},true);assert.equal(response.status,200);assert.equal(response.body.settings.uploadLimitBytes,liveCap);
+ response=await live.call('save-release',{version:file.version,releaseNotes:'',files:[{platform:file.platform,path:livePath,fileName:file.fileName,size:liveCap}]},true);assert.equal(response.status,200);assert.equal(response.body.settings.uploadLimitBytes,uploadCap);assert.equal(response.body.settings.objectUploadLimitBytes,liveCap);
  response=await live.call('create-upload',{...file,size:liveCap+1,uploadLimitBytes:uploadCap},true);assert.equal(response.status,400);assert.equal(live.logs.upload.length,1);
  response=await live.call('save-release',{version:file.version,releaseNotes:'',files:[{platform:file.platform,path:livePath,fileName:file.fileName,size:liveCap+1}]},true);assert.equal(response.status,400);assert.equal(live.logs.rpc.filter(([name])=>name==='invox_publish_release').length,1);
- for(const configuredLimit of [0,-1,uploadCap+1,Number.NaN,Number.POSITIVE_INFINITY]){response=await harness({uploadLimitBytes:configuredLimit}).call('admin-state',{},true);assert.equal(response.status,200);assert.equal(response.body.settings.uploadLimitBytes,liveCap);}
+ for(const configuredLimit of [0,-1,uploadCap,uploadCap+1,Number.NaN,Number.POSITIVE_INFINITY]){response=await harness({uploadLimitBytes:configuredLimit}).call('admin-state',{},true);assert.equal(response.status,200);assert.equal(response.body.settings.objectUploadLimitBytes,liveCap);}
  for(const configuredLimit of [undefined,'invalid','999999999999999999']){
   const runtime=harness();let runtimeHandler;
   const environment={SUPABASE_URL:'https://example.test',SUPABASE_SERVICE_ROLE_KEY:'fixture-service',SUPABASE_ANON_KEY:'fixture-anon',INVOX_UPLOAD_LIMIT_BYTES:configuredLimit};
   vm.runInNewContext(source,{crypto:webcrypto,Request,Response,Headers,URL,TextEncoder,TextDecoder,Uint8Array,btoa,atob,console,createClient:()=>runtime.service,Deno:{env:{get:key=>environment[key]},serve:handler=>{runtimeHandler=handler;}}});
-  const result=await runtimeHandler(new Request('https://example.test/api',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer fixture',Origin:'https://jmxxp.github.io'},body:JSON.stringify({action:'admin-state'})}));assert.equal(result.status,200);assert.equal((await result.json()).settings.uploadLimitBytes,liveCap);
+  const result=await runtimeHandler(new Request('https://example.test/api',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer fixture',Origin:'https://jmxxp.github.io'},body:JSON.stringify({action:'admin-state'})}));assert.equal(result.status,200);const advertised=(await result.json()).settings;assert.equal(advertised.objectUploadLimitBytes,liveCap);assert.equal(advertised.uploadLimitBytes,uploadCap);
  }
  console.log('PASS invox-api: anonymous/public/private downloads, PBKDF2, admin allowlist, username login, feedback, rate limits, signed uploads, immutable release validation, query fail-closed, no SQL leakage, CORS and body bounds.');
  return {result:'PASS',checks:['Public state omits paths/hash','Admin Auth + allowlist','Separate username/password Auth client','PBKDF2 private download gate','Rate limiter fail-closed','Signed installer upload','Ownership/size/manifest validation','Atomic publish RPC','Feedback validation','CORS and body limits','SQL and credential errors masked']};

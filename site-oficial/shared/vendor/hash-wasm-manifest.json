@@ -1,0 +1,7 @@
+{
+  "name": "hash-wasm",
+  "version": "4.13.0",
+  "source": "https://registry.npmjs.org/hash-wasm/-/hash-wasm-4.13.0.tgz",
+  "integrity": "sha512-GrWl7wsV46fKIXQZB5ebskLZLAmKL6d9RS0fspCxDeQyjoNu1AfTJTMLPOJyfzaQm0ldFiwFN21/w+sE/kgEFQ==",
+  "sha256": "0ab0ba5a8242ca02d4403e08a60b9308cb7322a175c3a5c3071c595fad1e65de"
+}
