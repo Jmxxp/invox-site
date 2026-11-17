@@ -39,7 +39,8 @@
 .game-release{text-align:center;padding:20px 0}
 .game-release-label{display:block;color:#dbc4e7;font-size:12px;font-weight:800;letter-spacing:.22em}
 .game-release strong{display:block;color:#fff;font-size:54px;line-height:1.3;letter-spacing:-.045em;font-weight:800;margin:3px 0 10px}
-.game-release-status{display:block;color:#d682ff;font-size:9px;font-weight:800;letter-spacing:.08em;padding:9px 7px;border:1px solid #a64fd166;background:#7b139e22;clip-path:polygon(7px 0,100% 0,100% calc(100% - 7px),calc(100% - 7px) 100%,0 100%,0 7px)}
+.game-release-status{--status-cut:7px;--status-inner-cut:6.414214px;display:block;position:relative;isolation:isolate;color:#d682ff;font-size:9px;font-weight:800;letter-spacing:.08em;padding:10px 8px;border:0;background:#a64fd166;clip-path:polygon(var(--status-cut) 0,100% 0,100% calc(100% - var(--status-cut)),calc(100% - var(--status-cut)) 100%,0 100%,0 var(--status-cut))}
+.game-release-status::before{content:"";position:absolute;z-index:-1;inset:1px;pointer-events:none;background:linear-gradient(#7b139e22,#7b139e22),#20102f;clip-path:polygon(var(--status-inner-cut) 0,100% 0,100% calc(100% - var(--status-inner-cut)),calc(100% - var(--status-inner-cut)) 100%,0 100%,0 var(--status-inner-cut))}
 .game-early-copy .game-kicker{font-size:10px;margin-bottom:11px}
 .game-early-copy h3{font-size:clamp(23px,2vw,32px);line-height:1.2;font-weight:800;letter-spacing:-.035em;margin-bottom:15px}
 .game-early-copy p{font-size:13px;line-height:1.75;max-width:850px}
@@ -97,6 +98,7 @@
 }
 @media(max-width:380px){.game-pillars{gap:10px}.game-pillar{padding:22px 14px}.game-pillar h3{font-size:14px}.game-pillar p{font-size:11px}.game-possibilities{gap:25px 16px}.game-possibility h4{font-size:13px}.game-possibility p{font-size:11px}.game-early{padding:25px 20px}.game-section-title{font-size:24px}}
 @media(prefers-reduced-motion:reduce){.game-cta{transition:none}.game-cta:hover{transform:none}}
+@media(forced-colors:active){.game-release-status{forced-color-adjust:none;background:CanvasText;color:CanvasText}.game-release-status::before{background:Canvas}}
 @media(max-width:600px){
   .game-topic-heading{margin-top:38px;padding-top:24px}
   .about-game .game-topic-heading h3{font-size:23px}
