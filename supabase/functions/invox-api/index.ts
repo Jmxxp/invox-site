@@ -1,6 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.119.0';
 
 const UPLOAD_LIMIT = 1.5 * 1024 * 1024 * 1024;
+const DEFAULT_UPLOAD_LIMIT = 50 * 1024 * 1024;
 const MAX_BODY = 32 * 1024;
 const BUCKET = 'invox-installers';
 const PLATFORMS = ['windows', 'macos', 'android'];
@@ -104,15 +105,15 @@ function versionValue(value) {
   if (typeof value !== 'string' || value.length > 64 || !VERSION.test(value.trim())) throw invalidInput();
   return value.trim();
 }
-function fileManifest(value, requirePath = true) {
+function fileManifest(value, requirePath = true, uploadLimitBytes = DEFAULT_UPLOAD_LIMIT) {
   if (!value || typeof value !== 'object' || Array.isArray(value) || !PLATFORMS.includes(value.platform)) throw invalidInput();
   const { platform, fileName, size, path } = value;
   if (typeof fileName !== 'string' || fileName.length < 1 || fileName.length > 180 || /[\\/\x00-\x1f\x7f]/.test(fileName) || fileName.trim() !== fileName) throw invalidInput();
-  if (!EXTENSIONS[platform].includes(fileName.split('.').pop().toLowerCase()) || !Number.isSafeInteger(size) || size < 1 || size > UPLOAD_LIMIT) throw invalidInput();
+  if (!EXTENSIONS[platform].includes(fileName.split('.').pop().toLowerCase()) || !Number.isSafeInteger(size) || size < 1 || size > uploadLimitBytes) throw invalidInput();
   if (requirePath && (typeof path !== 'string' || path.length < 1 || path.length > 512 || /[\\\x00-\x1f\x7f]/.test(path) || path.startsWith('/') || path.split('/').some(part => !part || part === '.' || part === '..'))) throw invalidInput();
   return requirePath ? { platform, path, fileName, size } : { platform, fileName, size };
 }
-function settingsOutput(settings) { return { visibility: settings.visibility, version: settings.version, releaseNotes: settings.release_notes, hasPassword: Boolean(settings.download_password_hash), uploadLimitBytes: UPLOAD_LIMIT, updatedAt: settings.updated_at }; }
+function settingsOutput(settings, uploadLimitBytes = DEFAULT_UPLOAD_LIMIT) { return { visibility: settings.visibility, version: settings.version, releaseNotes: settings.release_notes, hasPassword: Boolean(settings.download_password_hash), uploadLimitBytes, updatedAt: settings.updated_at }; }
 function installerOutput(item) { return { platform: item.platform, path: item.path, fileName: item.file_name, size: Number(item.size), version: item.version, updatedAt: item.updated_at }; }
 function feedbackOutput(item) { return { id: item.id, name: item.name, contact: item.contact, message: item.message, status: item.status, note: item.note, receivedAt: item.created_at, updatedAt: item.updated_at }; }
 
@@ -121,6 +122,9 @@ export function createHandler(dependencies) {
   const cryptography = dependencies.crypto || globalThis.crypto;
   const now = dependencies.now || (() => new Date().toISOString());
   const uuid = dependencies.randomUUID || (() => cryptography.randomUUID());
+  // Larger files remain opt-in until the project's Storage plan and limits support them.
+  const requestedUploadLimit = dependencies.uploadLimitBytes;
+  const uploadLimitBytes = Number.isSafeInteger(requestedUploadLimit) && requestedUploadLimit > 0 && requestedUploadLimit <= UPLOAD_LIMIT ? requestedUploadLimit : DEFAULT_UPLOAD_LIMIT;
 
   async function rateLimit(request, category, seconds, limit) {
     const ip = (request.headers.get('x-forwarded-for') || '').split(',').at(-1).trim() || 'unknown';
@@ -152,6 +156,11 @@ export function createHandler(dependencies) {
     if (!['day', 'week', 'month', 'year'].includes(period)) throw invalidInput();
     return resultData(await service.rpc('invox_analytics_report', { p_period: period }));
   }
+  async function resetAnalytics(admin) {
+    const data = resultData(await service.rpc('invox_reset_analytics', { p_admin_id: admin.user_id }));
+    if (typeof data.startedAt !== 'string' || !Number.isFinite(Date.parse(data.startedAt)) || !Number.isSafeInteger(data.generation) || data.generation < 1) throw unavailable();
+    return { startedAt: data.startedAt, generation: data.generation };
+  }
   async function lookupAdmin(user) {
     if (!user?.id || typeof user.email !== 'string' || !user.email_confirmed_at) throw fault('unauthorized', 'Entre com uma conta administrativa autorizada.', 401);
     const result = await service.from('invox_admins').select(ADMIN_COLUMNS).eq('user_id', user.id).eq('enabled', true).maybeSingle();
@@ -172,7 +181,7 @@ export function createHandler(dependencies) {
     const [settings, installerRows, feedbackResult] = await Promise.all([
       getSettings(), installers(), service.from('invox_feedbacks').select(FEEDBACK_COLUMNS).order('created_at', { ascending: false }).order('id', { ascending: false }).limit(200)
     ]);
-    return { admin: { username: admin.username, email: admin.email }, settings: settingsOutput(settings), installers: installerRows.map(installerOutput), feedbacks: resultData(feedbackResult).map(feedbackOutput) };
+    return { admin: { username: admin.username, email: admin.email }, settings: settingsOutput(settings, uploadLimitBytes), installers: installerRows.map(installerOutput), feedbacks: resultData(feedbackResult).map(feedbackOutput) };
   }
   async function login(request, body) {
     await rateLimit(request, 'admin_login', 900, 10);
@@ -266,7 +275,7 @@ export function createHandler(dependencies) {
       hash = await passwordHash(password, cryptography);
     } else if (!hash) throw fault('invalid_input', 'Defina uma senha para ativar o acesso privado.');
     const result = await service.from('invox_site_settings').update({ visibility: body.visibility, download_password_hash: hash, updated_at: now() }).eq('id', true).select(SETTINGS_COLUMNS).single();
-    return settingsOutput(resultData(result));
+    return settingsOutput(resultData(result), uploadLimitBytes);
   }
   async function updateFeedback(body) {
     if (typeof body.id !== 'string' || !UUID.test(body.id) || !['new', 'answered'].includes(body.status) || typeof body.note !== 'string' || body.note.length > 5000) throw invalidInput();
@@ -276,7 +285,7 @@ export function createHandler(dependencies) {
     return feedbackOutput(result.data);
   }
   async function createUpload(body, admin) {
-    const file = fileManifest(body, false), version = versionValue(body.version);
+    const file = fileManifest(body, false, uploadLimitBytes), version = versionValue(body.version);
     const extensionIndex = file.fileName.lastIndexOf('.');
     const extension = file.fileName.slice(extensionIndex);
     const baseName = file.fileName.slice(0, extensionIndex).normalize('NFKD').replace(/[^a-zA-Z0-9_.-]/g, '_');
@@ -291,7 +300,7 @@ export function createHandler(dependencies) {
   async function saveRelease(body, admin) {
     const version = versionValue(body.version);
     if (typeof body.releaseNotes !== 'string' || body.releaseNotes.length > 5000 || !Array.isArray(body.files) || body.files.length > 3) throw invalidInput();
-    const files = body.files.map(file => fileManifest(file));
+    const files = body.files.map(file => fileManifest(file, true, uploadLimitBytes));
     if (new Set(files.map(file => file.platform)).size !== files.length) throw invalidInput();
     await Promise.all(files.map(async file => {
       const pending = await service.from('invox_uploads').select('path,platform,file_name,size,version,created_by').eq('path', file.path).maybeSingle();
@@ -323,11 +332,12 @@ export function createHandler(dependencies) {
         case 'logout-download': return json(await logoutDownload(request, body));
         case 'feedback': return json(await feedback(request, body), 201);
       }
-      if (!['admin-state', 'analytics', 'save-access', 'update-feedback', 'create-upload', 'save-release'].includes(body.action)) throw invalidInput();
+      if (!['admin-state', 'analytics', 'reset-analytics', 'save-access', 'update-feedback', 'create-upload', 'save-release'].includes(body.action)) throw invalidInput();
       const admin = await authenticate(request);
       switch (body.action) {
         case 'admin-state': return json(await adminState(admin));
         case 'analytics': return json(await analytics(body));
+        case 'reset-analytics': return json(await resetAnalytics(admin));
         case 'save-access': return json(await saveAccess(body));
         case 'update-feedback': return json(await updateFeedback(body));
         case 'create-upload': return json(await createUpload(body, admin));
@@ -347,11 +357,12 @@ if (typeof Deno !== 'undefined') {
   const url = Deno.env.get('SUPABASE_URL');
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
+  const uploadLimitBytes = Number(Deno.env.get('INVOX_UPLOAD_LIMIT_BYTES') || DEFAULT_UPLOAD_LIMIT);
   const options = { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } };
   if (!url || !serviceKey || !anonKey) {
     Deno.serve(createUnavailableHandler());
   } else {
     const service = createClient(url, serviceKey, options);
-    Deno.serve(createHandler({ service, rateSecret: serviceKey, createAuthClient: () => createClient(url, anonKey, options) }));
+    Deno.serve(createHandler({ service, rateSecret: serviceKey, uploadLimitBytes, createAuthClient: () => createClient(url, anonKey, options) }));
   }
 }

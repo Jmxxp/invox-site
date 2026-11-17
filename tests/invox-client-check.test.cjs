@@ -70,9 +70,15 @@ const ticket=(path='windows/1.1.0/upload-id/INVOX.exe')=>({path,token:'signed-up
  {
   const {api,state}=harness();
   await assert.rejects(()=>api.adminState(),e=>e.code==='unauthorized'&&e.status===401);
+  await assert.rejects(()=>api.resetAnalytics(),e=>e.code==='unauthorized'&&e.status===401);
   assert.equal(state.fetchCalls.length,0);
   state.session=sessionFixture;state.responses.push(ok({admin:{username:'fixture'}}));
   await api.adminState();assert.equal(state.fetchCalls[0].options.headers.Authorization,'Bearer access-token-fixture');
+  state.responses.push(ok({startedAt:'2026-11-17T18:00:00Z',generation:2}));
+  const reset=await api.resetAnalytics();
+  assert.equal(reset.generation,2);
+  assert.deepEqual(state.fetchCalls[1].body,{action:'reset-analytics'});
+  assert.equal(state.fetchCalls[1].options.headers.Authorization,'Bearer access-token-fixture');
   checks.push('Admin actions require session and forward raw access token for server validation');
  }
  {

@@ -85,6 +85,7 @@
     publicState: () => request('state'),
     trackView: eventId => request('track-view', { eventId }),
     analytics: (period = 'week') => request('analytics', { period }, { admin: true }),
+    resetAnalytics: () => request('reset-analytics', {}, { admin: true }),
     async download(platform, password = '') {
       const saved = downloadSession();
       const epoch = downloadSessionEpoch;

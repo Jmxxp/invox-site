@@ -2,7 +2,7 @@
 
 Projeto ativo: `wsfdwyghqqaerivyrbil`. Banco, bucket privado e função `invox-api` implantados em **17/11/2026**. O administrador `jmxxp` está cadastrado no Supabase Auth e autorizado no servidor. A configuração atual usa versão **1.1.0**, acesso público e aguarda os instaladores reais.
 
-As migrações `20261117121558_invox_backend_init.sql`, `20261117124106_invox_analytics.sql` e `20261117125912_invox_download_sessions.sql` estão aplicadas. `schema.sql` preserva o snapshot completo sem credenciais; em um banco existente, use apenas migrações pendentes.
+As migrações `20261117121558_invox_backend_init.sql`, `20261117124106_invox_analytics.sql`, `20261117125912_invox_download_sessions.sql` e `20261117175159_invox_analytics_generations.sql` estão aplicadas. `schema.sql` preserva o snapshot completo sem credenciais; em um banco existente, use apenas migrações pendentes.
 
 ## Instalação em um banco vazio
 
@@ -16,11 +16,11 @@ Todas as tabelas possuem RLS e negam acesso direto a `anon` e `authenticated`. A
 
 ## Instaladores e liberação
 
-O limite preparado no código é **1,5 GB (1.610.612.736 bytes)** por arquivo. Os formatos são EXE/MSI/ZIP no Windows, DMG/PKG/ZIP no macOS e APK no Android. O bucket `invox-installers` permanece privado e aceita apenas `application/octet-stream`.
+O limite ativo é **50 MiB** por arquivo. O código aceita configurar até **1,5 GB (1.610.612.736 bytes)** por `INVOX_UPLOAD_LIMIT_BYTES` quando banco e Storage suportarem esse tamanho; valores ausentes ou inválidos preservam o padrão de 50 MiB. Os formatos são EXE/MSI/ZIP no Windows, DMG/PKG/ZIP no macOS e APK no Android. O bucket `invox-installers` permanece privado e aceita apenas `application/octet-stream`.
 
-**Pendência de implantação:** em 17/11/2026 a Management API confirmou que a organização `dhkdnkulbjafrouchbqy` está no plano Free, com limite global e bucket de 52.428.800 bytes. O backend ativo também mantém esse limite. A migração `20261117172304_invox_installer_limit_1_5gb.sql` foi preparada, mas não aplicada. O painel usa o limite informado pelo servidor, portanto não anuncia 1,5 GB enquanto o armazenamento ativo ainda bloqueia esse tamanho.
+**Proposta não aplicada:** em 17/11/2026 a Management API confirmou que a organização `dhkdnkulbjafrouchbqy` está no plano Free, com limite global e bucket de 52.428.800 bytes. A proposta `proposals/invox_installer_limit_1_5gb.sql` permanece fora da cadeia de migrações ativas. O painel usa o limite informado pelo servidor, portanto não anuncia 1,5 GB enquanto o armazenamento ativo ainda bloqueia esse tamanho.
 
-Para liberar o novo limite, é necessário mudar a organização para um plano compatível. Depois, configure `fileSizeLimit` global em 1.610.612.736 bytes, aplique a migração pendente e implante a versão correspondente de `invox-api`. Confirme o limite global, o bucket, as duas restrições de tamanho, a RPC de publicação e `admin-state` antes de enviar um instalador grande. Não basta alterar o texto do painel. Consulte os [limites do Supabase](https://supabase.com/docs/guides/storage/uploads/file-limits).
+Para liberar o novo limite, é necessário um plano compatível. Depois, configure `fileSizeLimit` global em 1.610.612.736 bytes, promova a proposta para uma nova migração e configure o mesmo limite na função. Confirme o limite global, o bucket, as duas restrições de tamanho, a RPC de publicação e `admin-state` antes de enviar um instalador grande. Consulte os [limites do Supabase](https://supabase.com/docs/guides/storage/uploads/file-limits).
 
 Arquivos de até 6 MiB usam PUT assinado. Os maiores usam TUS com blocos de 6 MiB, progresso e retentativas em memória, sem carregar o arquivo inteiro em um ArrayBuffer. A biblioteca oficial `tus-js-client` 4.3.1 está fixada em `shared/vendor/`, com licença e integridade verificadas. O token de upload não é persistido no navegador; a retomada ocorre durante as tentativas da mesma transferência. O token assinado vale duas horas; uma tentativa após sua expiração pode exigir um novo envio autorizado.
 
@@ -46,6 +46,12 @@ As nove tabelas usam RLS, sem permissões diretas para visitantes, com RPCs rest
 `track-view` registra um carregamento visível do site publicado com um UUID temporário, reutilizado em tentativas de reenvio. Acessos locais ficam fora da contagem. São armazenados contadores horários agregados, sem cookies de análise, URLs completas ou identificação de visitantes. UUIDs de deduplicação com mais de um dia são limpos gradualmente.
 
 O relatório `analytics` exige administrador. Hoje usa intervalos horários; 7 e 30 dias usam dias; 12 meses usa meses. Limites e rótulos seguem `America/Sao_Paulo`. O histórico começa em `analytics_started_at`; períodos anteriores à implantação não são recuperados. Downloads iniciados são URLs autorizadas pelo servidor, separados por plataforma; a conclusão da transferência não é medida.
+
+O gráfico permite inspecionar os valores com uma linha vertical que acompanha o ponteiro. Tab entra no gráfico e as setas, Home e End percorrem os intervalos.
+
+**Iniciar nova contagem** exige administrador e confirmação no painel. O servidor cria uma geração de contagem e registra seu instante inicial; não apaga os agregados anteriores. `invox_analytics_runs` guarda o histórico dos inícios e encerramentos, e os contadores usam a chave `(generation,bucket)`. A deduplicação dos acessos permanece global para não recontar um evento anterior reenviado. Eventos e reinícios coordenam o bloqueio da configuração antes de capturar o horário, permitindo um corte exato mesmo dentro da mesma hora. Totais e gráficos passam a consultar somente a geração atual.
+
+O teste `tests/analytics-reset.sql` confirma contagem zerada, quatro períodos, histórico, deduplicação e permissões usando uma transação com rollback. Sua execução não reinicia a contagem real. A implantação preservou a geração inicial e o instante original da contagem.
 
 ## Sessões persistentes
 

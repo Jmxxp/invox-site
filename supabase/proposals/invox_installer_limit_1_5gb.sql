@@ -1,3 +1,4 @@
+-- Proposal only: not part of the active migration chain.
 -- Requires a Supabase plan allowing >= 1610612736 bytes and the global
 -- Storage fileSizeLimit raised first. The Free plan remains capped at 50 MiB.
 -- Keep the bucket private, MIME restrictions, RLS and server-only RPC grants.
