@@ -55,5 +55,9 @@ const tusManifest = JSON.parse(await fs.readFile(path.join(out, 'shared/vendor/t
 assert.equal(tusManifest.version, '4.3.1', 'Versão fixada do transporte TUS');
 assert.equal(createHash('sha256').update(await fs.readFile(path.join(out, 'shared/vendor/tus.min.js'))).digest('hex'), tusManifest.sha256, 'Integridade do transporte TUS');
 await fs.access(path.join(out, 'shared/vendor/tus-LICENSE.txt'));
+const hashManifest = JSON.parse(await fs.readFile(path.join(out, 'shared/vendor/hash-wasm-manifest.json'), 'utf8'));
+assert.equal(hashManifest.version, '4.13.0', 'Versão fixada do hash incremental');
+assert.equal(createHash('sha256').update(await fs.readFile(path.join(out, 'shared/vendor/sha256.umd.min.js'))).digest('hex'), hashManifest.sha256, 'Integridade do hash incremental');
+await fs.access(path.join(out, 'shared/vendor/hash-wasm-LICENSE.txt'));
 await fs.access(path.join(out, '.nojekyll'));
 console.log(JSON.stringify({ passed: true, files: files.length, references, sdk: manifest.version, adminPath: '/invox-site/admin/' }, null, 2));

@@ -32,9 +32,13 @@ A configuração pública está em `site-oficial/shared/invox-client.js`. A chav
 
 Feedbacks, acesso e instaladores passam pela função `invox-api`, já publicada. O painel exige autenticação e permissão administrativa no servidor. Consulte [supabase/README.md](supabase/README.md) para detalhes da implantação e migrações.
 
+O Realtime atualiza feedbacks, gráficos, acesso e versões no painel e a disponibilidade dos instaladores no site. Eventos apenas invalidam a tela; os dados continuam vindo da API. O canal administrativo é privado e exige a allowlist. Reconexão recupera alterações, sem apagar rascunhos ou interromper downloads.
+
 Os instaladores ficam em bucket privado. Mesmo em modo público, o servidor gera URLs de download válidas por 60 segundos. Em modo privado, verifica a senha antes de gerar a URL. Uma URL já emitida continua válida até expirar.
 
 A versão inicial é 1.1.0. Publique os arquivos reais pelo painel; nenhum instalador de exemplo é criado. Instaladores, versões e acesso são gerenciados pelo painel administrativo.
+
+Windows, macOS e Android têm versões independentes. O painel permite editar a versão publicada sem reenviar o arquivo e consultar o histórico de publicações com data e horário de Brasília.
 
 O painel abre em **Análises**, com visualizações e downloads iniciados por plataforma em Hoje, 7 dias, 30 dias e 12 meses, no horário de Brasília. Os dados começam na ativação da contagem e não recuperam acessos anteriores. `site-oficial/analytics.js` conta uma página visível por carregamento; testes locais não entram nas métricas.
 

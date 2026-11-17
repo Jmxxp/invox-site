@@ -1,3 +1,4 @@
 # Preserve the exact npm bundle bytes verified by shared/vendor/manifest.json.
 site-oficial/shared/vendor/supabase.js -text -whitespace
 site-oficial/shared/vendor/tus.min.js -text -whitespace
+site-oficial/shared/vendor/sha256.umd.min.js -text -whitespace

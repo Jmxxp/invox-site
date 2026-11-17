@@ -1,8 +1,8 @@
 # Backend do INVOX
 
-Projeto ativo: `wsfdwyghqqaerivyrbil`. Banco, bucket privado e função `invox-api` implantados em **17/11/2026**. O administrador `jmxxp` está cadastrado no Supabase Auth e autorizado no servidor. A configuração atual usa versão **1.1.0**, acesso público e aguarda os instaladores reais.
+Projeto ativo: `wsfdwyghqqaerivyrbil`. Banco, buckets privados e função `invox-api` implantados em **17/11/2026**. O administrador `jmxxp` está cadastrado no Supabase Auth e autorizado no servidor. Acesso, versões e instaladores publicados são gerenciados no painel.
 
-As migrações `20261117121558_invox_backend_init.sql`, `20261117124106_invox_analytics.sql`, `20261117125912_invox_download_sessions.sql`, `20261117175159_invox_analytics_generations.sql`, `20261117193242_invox_game_feedback.sql` e `20261117194103_invox_game_announcements.sql` estão aplicadas. `schema.sql` preserva o snapshot completo sem credenciais; em um banco existente, use apenas migrações pendentes. A função `invox-api` está na versão 6, com SHA-256 da fonte `34dd33ce0feb8b17b39b3c8d1c339483e0a715dd0ee8f5da5c06898281b7b0cb`.
+As migrações SQL deste repositório reúnem backend, análises, sessões de acesso, uploads multipart, feedback do jogo, recados, Realtime e histórico de versões. As duas migrações do jogo foram aplicadas em 17/11/2026; multipart, Realtime e histórico também estão presentes no projeto alvo. `schema.sql` preserva o snapshot completo sem credenciais; em um banco existente, consulte o histórico e use apenas migrações pendentes. A função mesclada requer nova implantação; o registro da versão 6 abaixo descreve a validação anterior.
 
 ## Instalação em um banco vazio
 
@@ -16,19 +16,29 @@ Todas as tabelas possuem RLS e negam acesso direto a `anon` e `authenticated`. A
 
 ## Instaladores e liberação
 
-O limite ativo é **50 MiB** por arquivo. O código aceita configurar até **1,5 GB (1.610.612.736 bytes)** por `INVOX_UPLOAD_LIMIT_BYTES` quando banco e Storage suportarem esse tamanho; valores ausentes ou inválidos preservam o padrão de 50 MiB. Os formatos são EXE/MSI/ZIP no Windows, DMG/PKG/ZIP no macOS e APK no Android. O bucket `invox-installers` permanece privado e aceita apenas `application/octet-stream`.
+O painel aceita instaladores de até **1,5 GiB (1.610.612.736 bytes)**. Arquivos grandes são divididos em **partes de 20 MiB**, cada uma armazenada como objeto privado separado. O limite global de 50 MiB por objeto permanece. Os formatos continuam EXE/MSI/ZIP, DMG/PKG/ZIP e APK.
 
-**Proposta não aplicada:** em 17/11/2026 a Management API confirmou que a organização `dhkdnkulbjafrouchbqy` está no plano Free, com limite global e bucket de 52.428.800 bytes. A proposta `proposals/invox_installer_limit_1_5gb.sql` permanece fora da cadeia de migrações ativas. O painel usa o limite informado pelo servidor, portanto não anuncia 1,5 GB enquanto o armazenamento ativo ainda bloqueia esse tamanho.
+O novo bucket privado `invox-installer-parts` tem limite de 20 MiB e MIME `application/octet-stream` e deve ser criado pela Storage API. O bucket legado `invox-installers` continua privado, com 50 MiB. A proposta antiga em `proposals/` não é necessária para o fluxo multipart.
 
-Para liberar o novo limite, é necessário um plano compatível. Depois, configure `fileSizeLimit` global em 1.610.612.736 bytes, promova a proposta para uma nova migração e configure o mesmo limite na função. Confirme o limite global, o bucket, as duas restrições de tamanho, a RPC de publicação e `admin-state` antes de enviar um instalador grande. Consulte os [limites do Supabase](https://supabase.com/docs/guides/storage/uploads/file-limits).
+A capacidade total continua contando. O orçamento conservador do servidor é **1.000.000.000 bytes** neste projeto. `INVOX_STORAGE_BUDGET_BYTES` só deve aumentar após confirmar uma capacidade real maior. O painel mostra espaço disponível e reservas transacionais, incluindo a capacidade integral da última parte. A versão nova precisa caber junto com a anterior durante a publicação. Um instalador de 1,5 GiB não cabe em 1 GB de armazenamento total. Consulte os [limites](https://supabase.com/docs/guides/storage/uploads/file-limits) e as [cotas](https://supabase.com/pricing).
 
-Arquivos de até 6 MiB usam PUT assinado. Os maiores usam TUS com blocos de 6 MiB, progresso e retentativas em memória, sem carregar o arquivo inteiro em um ArrayBuffer. A biblioteca oficial `tus-js-client` 4.3.1 está fixada em `shared/vendor/`, com licença e integridade verificadas. O token de upload não é persistido no navegador; a retomada ocorre durante as tentativas da mesma transferência. O token assinado vale duas horas; uma tentativa após sua expiração pode exigir um novo envio autorizado.
+O envio usa TUS em blocos de 6 MiB; o legado até 6 MiB usa PUT assinado. Após recarregar o painel, selecione novamente o mesmo arquivo, plataforma e versão para aproveitar as partes verificadas. Tokens não são persistidos e sair do painel interrompe o envio. O hash incremental lê blocos de 1 MiB. SDKs TUS 4.3.1 e hash-wasm 4.13.0 estão fixados localmente, com licenças e integridade verificadas.
 
-Políticas restritivas para esse bucket impedem que regras amplas existentes abram os arquivos para clientes. Outros buckets não são afetados. O servidor emite tokens de upload para caminhos novos e URLs de download de curta duração. O modo privado valida a senha no servidor antes de emitir a URL; seu hash nunca é retornado. Uma URL já emitida permanece válida até vencer.
+Tokens assinados usam o endpoint TUS `/storage/v1/upload/resumable/sign`. A rota sem `/sign` é a de JWT/RLS e não autoriza esses uploads. O cliente valida também o host e a rota de cada `Location` antes de enviar novos blocos.
 
-A publicação confere o manifesto contra `invox_uploads`: administrador, plataforma, caminho, nome, tamanho e versão. A API também confirma o tamanho real do objeto no Storage antes da transação. Plataformas omitidas preservam o instalador anterior. Arquivos antigos e uploads abandonados não são excluídos automaticamente; a limpeza deve respeitar os objetos ainda referidos por `invox_installers`.
+A API confere tamanho e SHA-256 dos bytes de cada parte. O banco fixa identidade e versão dos objetos e só publica manifestos completos. A troca é atômica e mantém plataformas omitidas. A limpeza respeita referências, downloads ativos e validade de autorizações.
+
+No site, um ticket opaco de oito horas autoriza as partes; URLs assinadas de 60 segundos são emitidas quando necessárias. A página reúne o arquivo em fluxo, verifica cada parte e só libera a última após conferir o SHA-256 completo. Não há Blob do instalador inteiro. O navegador precisa suportar streams transferíveis com Service Worker ou File System Access. Mantenha a aba aberta; há cancelamento da transferência.
+
+Os dois buckets continuam privados. Alterar acesso ou senha invalida tickets multipart; uma URL de parte já emitida pode durar até seu vencimento. O hash da senha nunca é retornado.
 
 ## Funções do banco
+
+A migração `20261117200708_invox_installer_version_history.sql` permite `files[].version` independente da versão geral em `save-release`, com fallback para a geral nos clientes antigos. `update-installer-version` altera somente a versão exibida da plataforma e retorna o estado administrativo atualizado, sem reenviar o arquivo. Plataforma, proprietário, tamanho, caminho e hash continuam validados; a versão original do upload não muda.
+
+`invox_installer_history` permite somente acréscimos, com RLS e leitura/inserção restritas ao servidor. `invox_installers.current_history_id` aponta o registro atual exato, inclusive quando um número de versão anterior é reutilizado. Cada edição ou publicação grava horário do servidor; repetições da mesma edição são idempotentes. A limpeza de objetos não remove o histórico. O estado administrativo inclui os últimos 100 registros; o site público não recebe esse histórico. O backfill preserva o timestamp conhecido dos instaladores atuais e os marca como importados.
+
+A validação em rollback usou o instalador Windows real para conferir versão independente, alteração sem bytes, repetição idempotente, retorno a um número anterior, ponteiro atual e autorização. O arquivo e a versão pública permaneceram intactos.
 
 - `invox_take_rate_limit(p_key_hash text, p_category text, p_window_seconds integer, p_limit integer) → boolean`: incremento atômico de tentativas. Hash SHA-256 hexadecimal de 64 caracteres, categoria `[a-z][a-z0-9_-]{0,63}`, janela de 1 a 86400 segundos e limite de 1 a 10000. Limpa até mil contadores com mais de um dia por chamada.
 - `invox_publish_release(p_version text, p_release_notes text, p_files jsonb, p_admin_id uuid) → void`: publicação atômica. O manifesto usa `[{"platform":"windows","path":"...","fileName":"INVOX.exe","size":123}]`. Aceita de zero a três plataformas sem repetição e exige correspondência com um upload autorizado.
@@ -44,6 +54,18 @@ As tabelas do INVOX usam RLS, sem permissões diretas para visitantes, com RPCs 
 Na versão 6, as duas migrações do jogo foram aplicadas em transação e `tests/game-feedback.sql` passou com rollback. O teste HTTPS real de `GameCommunityService` e `FeedbackClient` passou em sete verificações e confirmou no banco os dois registros temporários com tipos `feedback`/`suggestion`, origem `game` e contato nulo. A limpeza removeu somente esses dois UUIDs. Não publicou recado para jogadores. Evidências locais: `D:/INVOX/Temporarios/community_https_20261117` e `D:/INVOX/Temporarios/invox-backend-20261117/game-feedback-end-to-end.json`.
 
 As proteções adicionais passaram nos 15 testes locais existentes e em 14 verificações isoladas, sem chamadas de produção nesses testes: corpo JSON limitado a 32 KiB e 5 s, chamadas de backend com prazo de 15 s, até 64 requests ativos por instância, controles de frequência e validação de versão/manifesto/origem/bucket antes de assinar um instalador. Consultas públicas têm cache interno de 2 s, invalidado nas edições administrativas; login e links temporários não entram nesse cache. `verify_jwt=false` foi preservado porque ações públicas atendem visitantes e jogo; ações administrativas continuam validando Auth e a lista de administradores internamente. O teste visual de login administrativo e a publicação CDN do frontend ainda estão pendentes deste lote.
+
+A implantação multipart foi validada com **64 MiB reais**, em quatro objetos (20 + 20 + 20 + 4 MiB), via TUS assinado. Foram confirmadas a retomada da mesma sessão, a recuperação de confirmação perdida e a reconstrução por URLs assinadas, com SHA-256 idêntico ao original. O preview administrativo não publicou esse arquivo nas plataformas. Objetos, metadados, reservas e sessão temporária de teste foram removidos; o projeto voltou a zero bytes usados e reservados. A gravação do teste usou o helper real com sink de arquivo no Node; não houve teste interativo em navegador físico nesta sessão.
+
+Todas as tabelas usam RLS, sem permissões diretas para visitantes, com RPCs restritas ao servidor e bucket privado. Os advisors não apontaram erros. Permanece um aviso de [proteção contra senhas vazadas desativada](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection); a disponibilidade dessa opção depende da configuração e do plano do projeto.
+
+## Realtime
+
+A migração `20261117194612_invox_realtime_updates.sql` está aplicada. Triggers enviam apenas invalidações `{scope}` com `realtime.send`: `invox:site` público para acesso/versões/instaladores, e `invox:admin` privado para feedbacks, análises e configurações. Não há assinatura de linhas via Postgres Changes. O SDK descarta metadados extras de transporte e consulta novamente a API.
+
+O helper `invox_private.realtime_admin()` verifica a identidade atual e a allowlist, com e-mail confirmado. O schema não é exposto à Data API. Policies de leitura e guards restritivos em `realtime.messages` protegem o tópico administrativo sem conceder leitura das tabelas de negócio. Clientes não podem publicar nesse tópico. A autorização do canal é cacheada pelo Realtime; a API revalida o administrador a cada busca, e os eventos não contêm dados privados.
+
+Na implantação, WebSockets reais receberam eventos de criação/alteração de feedback, configurações, instaladores e análises. O cliente anônimo foi recusado no canal privado; um canal público com o mesmo nome não recebeu seus eventos. O feedback temporário foi removido e os valores de configuração/contadores foram preservados. `tests/realtime-authorization.sql` valida permissões em rollback. Os testes de interface cobrem reconexão, agrupamento de eventos, rascunhos e downloads ativos.
 
 ## Análises
 

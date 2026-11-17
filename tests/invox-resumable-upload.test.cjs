@@ -5,7 +5,7 @@ const clientSource=fs.readFileSync('site-oficial/shared/invox-client.js','utf8')
 const tusSource=fs.readFileSync('site-oficial/shared/vendor/tus.min.js','utf8');
 const project='https://wsfdwyghqqaerivyrbil.supabase.co';
 const storageOrigin='https://wsfdwyghqqaerivyrbil.storage.supabase.co';
-const endpoint=storageOrigin+'/storage/v1/upload/resumable';
+const endpoint=storageOrigin+'/storage/v1/upload/resumable/sign';
 const chunkSize=6*1024*1024;
 const uploadToken='signed-upload-fixture';
 const defaultTicket={path:'windows/1.1.0/upload-id/INVOX.exe',token:uploadToken,signedUrl:project+'/storage/v1/object/upload/sign/invox-installers/windows/1.1.0/upload-id/INVOX.exe?token='+uploadToken};
@@ -48,7 +48,7 @@ function harness(options={}){
      assert.equal(this.url,endpoint);assert.equal(state.offset,0);
      state.total=Number(this.headers['upload-length']);
      state.offset=body?.size||0;
-     this.responseHeaders.location=endpoint+'/upload-fixture';this.status=201;
+     this.responseHeaders.location=options.location||endpoint+'/upload-fixture';this.status=201;
     }else if(this.method==='HEAD'){
      assert.equal(this.url,endpoint+'/upload-fixture');this.status=200;
     }else if(this.method==='PATCH'){
@@ -94,12 +94,12 @@ function harness(options={}){
 async function upload(h,file){return h.api.uploadInstaller({platform:'windows',version:'1.1.0',file,onProgress:value=>h.state.progress.push(value)});}
 (async()=>{
  {
-  const file=new DiskFile(1.5*1024*1024*1024),h=harness();
+  const file=new DiskFile(48*1024*1024),h=harness();
   const result=await upload(h,file);
   assert.equal(result.size,file.size);assert.equal(result.path,defaultTicket.path);assert.equal(h.state.offset,file.size);
   assert.equal(h.state.requests.filter(r=>r.method==='POST').length,1);
-  assert.equal(h.state.requests.filter(r=>r.method==='PATCH').length,255);
-  assert.equal(file.slices.length,256);assert.equal(file.slices[0].start,0);assert.equal(file.slices.at(-1).end,file.size);
+  assert.equal(h.state.requests.filter(r=>r.method==='PATCH').length,7);
+  assert.equal(file.slices.length,8);assert.equal(file.slices[0].start,0);assert.equal(file.slices.at(-1).end,file.size);
   assert.equal(h.state.uploads[0].file,file);assert.equal(h.state.sdkCalls.length,1);
   assert.equal(h.state.apiCalls[0].init.headers.Authorization,'Bearer admin-access-fixture');
   const metadata=Object.fromEntries(h.state.requests[0].headers['upload-metadata'].split(',').map(pair=>{const [name,value]=pair.split(' ');return [name,Buffer.from(value,'base64').toString()];}));
@@ -111,7 +111,7 @@ async function upload(h,file){return h.api.uploadInstaller({platform:'windows',v
   }
   assert.equal(h.state.progress[0],0);assert.equal(h.state.progress.at(-1),100);assert(!h.state.progress.slice(0,-1).includes(100));
   assert([...h.localStorage.values.values(),...h.sessionStorage.values.values()].every(value=>!value.includes(uploadToken)&&!value.includes('/resumable/')));
-  checks.push('Real vendored tus uploads a virtual 1.5 GiB File in 256 bounded slices, with scoped signed headers and no extra Auth client or persisted upload URL');
+  checks.push('Legacy single-object path uploads a virtual 48 MiB File in eight bounded slices, with scoped signed headers and no extra Auth client or persisted upload URL');
  }
  {
   const file=new DiskFile(20*1024*1024),h=harness({interrupt:true});await upload(h,file);
@@ -133,6 +133,11 @@ async function upload(h,file){return h.api.uploadInstaller({platform:'windows',v
   h.state.uploads[0].options.onSuccess();h.state.uploads[0].options.onProgress(file.size,file.size);assert(!h.state.progress.includes(100));
  }
  checks.push('401/403/413 stop without retry; transient 500 exhausts configured retries; failures and late callbacks never emit success or signed credentials');
+ for(const location of [storageOrigin+'/storage/v1/upload/resumable/upload-fixture','https://outside.example.test/upload',endpoint+'/upload-fixture?token=fixture']){
+  const h=harness({location});await assert.rejects(()=>upload(h,new DiskFile(chunkSize+1)),error=>error.code==='invalid_upload');
+  assert.equal(h.state.requests.length,1,'No chunk request follows an invalid server Location');assert.equal(h.state.requests[0].method,'POST');assert(!h.state.progress.includes(100));
+ }
+ checks.push('Signed TUS uses /resumable/sign and refuses non-signed, external or query-bearing upload Locations before sending more bytes');
  for(const options of [{signedOut:true},{ticketError:true},{ticket:{...defaultTicket,signedUrl:'https://outside.example.test/upload'}},{ticket:{...defaultTicket,path:'windows/../file.exe'}}]){
   const h=harness(options);await assert.rejects(()=>upload(h,new DiskFile(chunkSize+1)));
   assert.equal(h.state.requests.length,0);assert.equal(h.state.uploads.length,0);

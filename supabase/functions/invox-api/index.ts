@@ -2,6 +2,10 @@ import { createClient } from 'npm:@supabase/supabase-js@2.119.0';
 
 const UPLOAD_LIMIT = 1.5 * 1024 * 1024 * 1024;
 const DEFAULT_UPLOAD_LIMIT = 50 * 1024 * 1024;
+const PART_LIMIT = 20 * 1024 * 1024;
+const PART_BUCKET = 'invox-installer-parts';
+const DEFAULT_STORAGE_BUDGET = 1000000000;
+const SHA256 = /^[a-f0-9]{64}$/;
 const MAX_BODY = 32 * 1024;
 const BODY_TIMEOUT_MS = 5000;
 const BACKEND_TIMEOUT_MS = 15000;
@@ -12,8 +16,8 @@ const EXTENSIONS = { windows: ['exe', 'msi', 'zip'], macos: ['dmg', 'pkg', 'zip'
 const VERSION = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*)?(?:\+[0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*)?$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DOWNLOAD_TOKEN = /^[a-f0-9]{64}$/;
-const SETTINGS_COLUMNS = 'visibility,download_password_hash,version,release_notes,updated_at';
-const INSTALLER_COLUMNS = 'platform,path,file_name,size,version,updated_at';
+const SETTINGS_COLUMNS = 'visibility,download_password_hash,download_access_generation,version,release_notes,updated_at';
+const INSTALLER_COLUMNS = 'platform,path,file_name,size,version,updated_at,multipart_upload_id,sha256';
 const ADMIN_COLUMNS = 'email,username,user_id,enabled';
 const FEEDBACK_COLUMNS = 'id,name,contact,message,kind,source,status,note,created_at,updated_at';
 const ANNOUNCEMENT_COLUMNS = 'id,title,message,active,published_at,updated_at';
@@ -140,13 +144,19 @@ function fileManifest(value, requirePath = true, uploadLimitBytes = DEFAULT_UPLO
   if (requirePath && (typeof path !== 'string' || path.length < 1 || path.length > 512 || /[\\\x00-\x1f\x7f]/.test(path) || path.startsWith('/') || path.split('/').some(part => !part || part === '.' || part === '..'))) throw invalidInput();
   return requirePath ? { platform, path, fileName, size } : { platform, fileName, size };
 }
-function settingsOutput(settings, uploadLimitBytes = DEFAULT_UPLOAD_LIMIT) { return { visibility: settings.visibility, version: settings.version, releaseNotes: settings.release_notes, hasPassword: Boolean(settings.download_password_hash), uploadLimitBytes, updatedAt: settings.updated_at }; }
-function installerOutput(item) { return { platform: item.platform, path: item.path, fileName: item.file_name, size: Number(item.size), version: item.version, updatedAt: item.updated_at }; }
+function settingsOutput(settings, objectUploadLimitBytes = DEFAULT_UPLOAD_LIMIT) { return { visibility: settings.visibility, version: settings.version, releaseNotes: settings.release_notes, hasPassword: Boolean(settings.download_password_hash), uploadLimitBytes: UPLOAD_LIMIT, objectUploadLimitBytes, multipartPartSizeBytes: PART_LIMIT, updatedAt: settings.updated_at }; }
+function installerOutput(item) { return { platform: item.platform, path: item.path, fileName: item.file_name, size: Number(item.size), version: item.version, updatedAt: item.updated_at, ...(item.multipart_upload_id ? { kind: 'multipart', uploadId: item.multipart_upload_id, sha256: item.sha256 } : {}) }; }
 function publishedInstaller(item) {
   try {
-    const file = fileManifest(installerOutput(item), true, UPLOAD_LIMIT);
+    const multipart = Boolean(item.multipart_upload_id);
+    const file = fileManifest(installerOutput(item), !multipart, UPLOAD_LIMIT);
     const version = versionValue(item.version);
-    if (!file.path.startsWith(`${file.platform}/${version}/`)) throw unavailable();
+    if (multipart) {
+      if (!UUID.test(item.multipart_upload_id) || !SHA256.test(item.sha256)) throw unavailable();
+    } else {
+      if (!file.path.startsWith(`${file.platform}/`)) throw unavailable();
+      versionValue(file.path.split('/')[1]);
+    }
     return { ...item, ...file, file_name: file.fileName, version };
   } catch { throw unavailable(); }
 }
@@ -158,10 +168,10 @@ export function createHandler(dependencies) {
   const cryptography = dependencies.crypto || globalThis.crypto;
   const now = dependencies.now || (() => new Date().toISOString());
   const uuid = dependencies.randomUUID || (() => cryptography.randomUUID());
-  function signedStorageURL(value, upload = false) {
+  function signedStorageURL(value, upload = false, bucket = BUCKET) {
     try {
       const url = new URL(value);
-      const prefix = `/storage/v1/object/${upload ? 'upload/sign' : 'sign'}/${BUCKET}/`;
+      const prefix = `/storage/v1/object/${upload ? 'upload/sign' : 'sign'}/${bucket}/`;
       if (url.protocol !== 'https:' || url.username || url.password || url.hash || !url.pathname.startsWith(prefix)
         || (dependencies.storageOrigin && url.origin !== dependencies.storageOrigin)) throw unavailable();
       return url.href;
@@ -183,7 +193,38 @@ export function createHandler(dependencies) {
   }
   // Larger files remain opt-in until the project's Storage plan and limits support them.
   const requestedUploadLimit = dependencies.uploadLimitBytes;
-  const uploadLimitBytes = Number.isSafeInteger(requestedUploadLimit) && requestedUploadLimit > 0 && requestedUploadLimit <= UPLOAD_LIMIT ? requestedUploadLimit : DEFAULT_UPLOAD_LIMIT;
+  const uploadLimitBytes = Number.isSafeInteger(requestedUploadLimit) && requestedUploadLimit > 0 && requestedUploadLimit <= DEFAULT_UPLOAD_LIMIT ? requestedUploadLimit : DEFAULT_UPLOAD_LIMIT;
+  const storageBudgetBytes = Number.isSafeInteger(dependencies.storageBudgetBytes) && dependencies.storageBudgetBytes > 0 ? dependencies.storageBudgetBytes : DEFAULT_STORAGE_BUDGET;
+
+  async function multipartRpc(name, args, nullable = false) {
+    const result = await service.rpc(name, args);
+    if (result?.error) {
+      if (result.error.message === 'invox_storage_quota_exceeded') throw fault('storage_quota_exceeded', 'Não há espaço disponível para este envio. Libere envios pendentes antes de tentar novamente.', 409);
+      if (result.error.message === 'invox_download_ticket_expired') throw fault('download_expired', 'Este download expirou ou o acesso foi alterado. Inicie o download novamente.', 401);
+      if (result.error.code === '42501') throw fault('forbidden', 'Este envio não está disponível para sua conta.', 403);
+      if (result.error.code === 'P0002') throw fault('unavailable', 'Este instalador não está disponível.', 404);
+      if (result.error.code === '22023') throw invalidInput();
+      throw unavailable();
+    }
+    if (!result || (!nullable && result.data == null)) throw unavailable();
+    return result.data;
+  }
+  function opaqueToken() { return Array.from(cryptography.getRandomValues(new Uint8Array(32)), byte => byte.toString(16).padStart(2, '0')).join(''); }
+  function uploadId(value) { if (typeof value !== 'string' || !UUID.test(value)) throw invalidInput(); return value; }
+  function partIndex(value) { if (!Number.isInteger(value) || value < 0 || value > 76) throw invalidInput(); return value; }
+  async function opportunisticCleanup(admin) {
+    // Maintenance is bounded and optional. Quota checks still fail closed if it fails.
+    try {
+      const rows = await multipartRpc('invox_multipart_cleanup_due', { p_admin_id: admin.user_id, p_limit: 2 });
+      if (!Array.isArray(rows) || rows.length > 2) throw unavailable();
+      for (const row of rows) {
+        const id = uploadId(row.uploadId);
+        if (!Array.isArray(row.paths) || row.paths.length > 77 || row.paths.some(path => typeof path !== 'string' || !path.startsWith(`uploads/${id}/`) || !/^uploads\/[a-f0-9-]{36}\/[0-9]{3}-[a-f0-9]{64}\.part$/.test(path))) throw unavailable();
+        if (row.paths.length) { const removed = await service.storage.from(PART_BUCKET).remove(row.paths); if (removed.error) throw unavailable(); }
+        await multipartRpc('invox_purge_multipart_due', { p_admin_id: admin.user_id, p_upload_id: id }, true);
+      }
+    } catch { /* Failed maintenance keeps its quota reservation and can be retried. */ }
+  }
 
   async function rateLimit(request, category, seconds, limit, identity = '') {
     const ip = (request.headers.get('x-forwarded-for') || '').split(',').at(-1).trim().slice(0, 128) || 'unknown';
@@ -243,10 +284,14 @@ export function createHandler(dependencies) {
     return lookupAdmin(result.data.user);
   }
   async function adminState(admin) {
-    const [settings, installerRows, feedbackResult, announcementRows] = await Promise.all([
-      getSettings(), installers(), service.from('invox_feedbacks').select(FEEDBACK_COLUMNS).order('created_at', { ascending: false }).order('id', { ascending: false }).limit(200), announcements()
+    await opportunisticCleanup(admin);
+    const [settings, installerRows, feedbackResult, storage, history, announcementRows] = await Promise.all([
+      getSettings(), installers(), service.from('invox_feedbacks').select(FEEDBACK_COLUMNS).order('created_at', { ascending: false }).order('id', { ascending: false }).limit(200),
+      multipartRpc('invox_storage_status', { p_budget_bytes: storageBudgetBytes }),
+      multipartRpc('invox_installer_history_list', { p_admin_id: admin.user_id, p_limit: 100 }), announcements()
     ]);
-    return { admin: { username: admin.username, email: admin.email }, settings: settingsOutput(settings, uploadLimitBytes), installers: installerRows.map(installerOutput), feedbacks: resultData(feedbackResult).map(feedbackOutput), announcements: announcementRows.map(announcementOutput) };
+    if (!Array.isArray(history)) throw unavailable();
+    return { admin: { username: admin.username, email: admin.email }, settings: settingsOutput(settings, uploadLimitBytes), installers: installerRows.map(installerOutput), feedbacks: resultData(feedbackResult).map(feedbackOutput), storage, history, announcements: announcementRows.map(announcementOutput) };
   }
   async function login(request, body) {
     await rateLimit(request, 'admin_login', 900, 10);
@@ -308,8 +353,14 @@ export function createHandler(dependencies) {
     if (installer.error) throw unavailable();
     if (!installer.data) throw fault('unavailable', 'Este instalador ainda não está disponível.', 404);
     const published = publishedInstaller(installer.data);
-    const data = resultData(await service.storage.from(BUCKET).createSignedUrl(published.path, 60, { download: published.file_name }));
-    const signedUrl = signedStorageURL(data.signedUrl);
+    let multipart = null, data = null;
+    if (published.multipart_upload_id) {
+      await rateLimit(request, 'multipart_download', 60, 30);
+      multipart = await mintMultipartDownload(published.multipart_upload_id, settings);
+    } else {
+      data = resultData(await service.storage.from(BUCKET).createSignedUrl(published.path, 60, { download: published.file_name }));
+      data.signedUrl = signedStorageURL(data.signedUrl);
+    }
     if (settings.visibility === 'private' && !accessSession) {
       const token = Array.from(cryptography.getRandomValues(new Uint8Array(32)), byte => byte.toString(16).padStart(2, '0')).join('');
       const expiresAt = resultData(await service.rpc('invox_create_download_session', {
@@ -318,8 +369,26 @@ export function createHandler(dependencies) {
       if (typeof expiresAt !== 'string' || !Number.isFinite(Date.parse(expiresAt)) || Date.parse(expiresAt) <= Date.parse(now())) throw unavailable();
       accessSession = { token, expiresAt };
     }
+    if (multipart) return { ...multipart, ...(accessSession ? { accessSession } : {}) };
     if (!await recordAnalytics('download', null, body.platform)) throw unavailable();
-    return { url: signedUrl, fileName: published.file_name, expiresIn: 60, ...(accessSession ? { accessSession } : {}) };
+    return { url: data.signedUrl, fileName: published.file_name, expiresIn: 60, ...(accessSession ? { accessSession } : {}) };
+  }
+  async function mintMultipartDownload(id, settings, admin = null) {
+    const ticket = opaqueToken();
+    const data = await multipartRpc('invox_mint_multipart_download', { p_upload_id: id, p_token_hash: await sha256(ticket, cryptography), p_access_generation: settings.download_access_generation, p_preview: Boolean(admin), p_admin_id: admin?.user_id || null });
+    if (data.kind !== 'multipart' || !Array.isArray(data.parts) || data.parts.length < 1 || data.parts.length > 77 || !Number.isSafeInteger(data.size) || data.size > UPLOAD_LIMIT || !SHA256.test(data.sha256) || !Number.isFinite(Date.parse(data.expiresAt))) throw unavailable();
+    return { kind: 'multipart', ticket, fileName: data.fileName, size: data.size, sha256: data.sha256, expiresAt: data.expiresAt, parts: data.parts };
+  }
+  async function downloadPart(request, body) {
+    if (typeof body.ticket !== 'string' || !DOWNLOAD_TOKEN.test(body.ticket)) throw invalidInput();
+    const index = partIndex(body.index), tokenHash = await sha256(body.ticket, cryptography);
+    await rateLimit(request, 'download_part', 60, 360);
+    const part = await multipartRpc('invox_download_multipart_part', { p_token_hash: tokenHash, p_index: index });
+    if (typeof part.uploadId !== 'string' || !UUID.test(part.uploadId) || part.path !== `uploads/${part.uploadId}/${String(index).padStart(3, '0')}-${part.sha256}.part` || part.index !== index || !Number.isSafeInteger(part.size) || part.size < 1 || part.size > PART_LIMIT || !SHA256.test(part.sha256)) throw unavailable();
+    const data = resultData(await service.storage.from(PART_BUCKET).createSignedUrl(part.path, 60));
+    data.signedUrl = signedStorageURL(data.signedUrl, false, PART_BUCKET);
+    if (!await multipartRpc('invox_count_multipart_download', { p_token_hash: tokenHash })) throw unavailable();
+    return { url: data.signedUrl, expiresIn: 60, index, size: part.size, sha256: part.sha256 };
   }
   async function logoutDownload(request, body) {
     if (body.accessToken === undefined || body.accessToken === '') return { cleared: true };
@@ -381,34 +450,103 @@ export function createHandler(dependencies) {
     invalidatePublic();
     return announcementOutput(result.data);
   }
+  async function createMultipartUpload(body, admin) {
+    await opportunisticCleanup(admin);
+    const file = fileManifest(body, false, UPLOAD_LIMIT), version = versionValue(body.version);
+    if (typeof body.sha256 !== 'string' || !SHA256.test(body.sha256) || !Array.isArray(body.parts) || body.parts.length !== Math.ceil(file.size / PART_LIMIT)) throw invalidInput();
+    const parts = body.parts.map((part, index) => {
+      const size = Math.min(PART_LIMIT, file.size - index * PART_LIMIT);
+      if (!part || part.index !== index || part.size !== size || typeof part.sha256 !== 'string' || !SHA256.test(part.sha256)) throw invalidInput();
+      return { index, size, sha256: part.sha256 };
+    });
+    return multipartRpc('invox_create_multipart_upload', { p_admin_id: admin.user_id, p_platform: file.platform, p_file_name: file.fileName, p_size: file.size, p_version: version,
+      p_sha256: body.sha256, p_manifest_sha256: await sha256(JSON.stringify(parts), cryptography), p_parts: parts, p_budget_bytes: storageBudgetBytes });
+  }
+  async function multipartPart(admin, id, index) {
+    const part = await multipartRpc('invox_multipart_part', { p_admin_id: admin.user_id, p_upload_id: id, p_index: index });
+    const expectedPath = `uploads/${id}/${String(index).padStart(3, '0')}-${part.sha256}.part`;
+    if (part.path !== expectedPath || !SHA256.test(part.sha256) || !Number.isSafeInteger(part.size) || part.size < 1 || part.size > PART_LIMIT) throw unavailable();
+    return part;
+  }
+  async function verifyMultipartPart(admin, id, index, part) {
+    if (!part.objectId || Number(part.objectSize) !== part.size || typeof part.objectVersion !== 'string') throw fault('integrity_error', 'Uma parte não terminou de ser enviada ou possui tamanho diferente. Envie-a novamente.');
+    if (part.verified_at && part.verified_object_id === part.objectId && part.verified_object_version === part.objectVersion && part.verified_sha256 === part.sha256) return true;
+    const blob = resultData(await service.storage.from(PART_BUCKET).download(part.path));
+    if (blob.size !== part.size || blob.size > PART_LIMIT) throw fault('integrity_error', 'Uma parte possui tamanho diferente. Envie-a novamente.');
+    const buffer = await blob.arrayBuffer();
+    if (buffer.byteLength !== part.size) throw fault('integrity_error', 'Uma parte possui tamanho diferente. Envie-a novamente.');
+    const hash = Array.from(new Uint8Array(await cryptography.subtle.digest('SHA-256', buffer)), byte => byte.toString(16).padStart(2, '0')).join('');
+    if (hash !== part.sha256) throw fault('integrity_error', 'Uma parte não passou na verificação de integridade. Envie-a novamente.');
+    const current = await multipartPart(admin, id, index);
+    if (current.objectId !== part.objectId || current.objectVersion !== part.objectVersion || current.objectSize !== part.objectSize) throw fault('upload_changed', 'Esta parte foi alterada durante a verificação. Tente novamente.', 409);
+    if (!await multipartRpc('invox_confirm_multipart_part', { p_admin_id: admin.user_id, p_upload_id: id, p_index: index, p_object_id: part.objectId, p_object_version: part.objectVersion, p_sha256: hash })) throw unavailable();
+    return true;
+  }
+  async function multipartPartUpload(body, admin) {
+    const id = uploadId(body.uploadId), index = partIndex(body.index), part = await multipartPart(admin, id, index);
+    if (part.objectId) {
+      try { await verifyMultipartPart(admin, id, index, part); return { completed: true, index }; }
+      catch (error) {
+        if (!SAFE_FAULTS.has(error) || error.code !== 'integrity_error' || !['uploading', 'ready'].includes(part.uploadStatus)) throw error;
+        const removed = await service.storage.from(PART_BUCKET).remove([part.path]); if (removed.error) throw unavailable();
+      }
+    }
+    await multipartRpc('invox_multipart_upload_ticket', { p_admin_id: admin.user_id, p_upload_id: id, p_index: index, p_budget_bytes: storageBudgetBytes }, true);
+    const data = resultData(await service.storage.from(PART_BUCKET).createSignedUploadUrl(part.path, { upsert: false }));
+    if (typeof data.token !== 'string' || !data.token || typeof data.signedUrl !== 'string' || !data.signedUrl) throw unavailable();
+    return { completed: false, path: part.path, token: data.token, signedUrl: data.signedUrl, bucket: PART_BUCKET };
+  }
+  async function confirmMultipartPart(body, admin) {
+    const id = uploadId(body.uploadId), index = partIndex(body.index);
+    await verifyMultipartPart(admin, id, index, await multipartPart(admin, id, index));
+    return { index, verified: true };
+  }
+  async function cleanupMultipartUpload(body, admin) {
+    const id = uploadId(body.uploadId), data = await multipartRpc('invox_cancel_multipart_upload', { p_admin_id: admin.user_id, p_upload_id: id });
+    if (!Array.isArray(data.paths) || data.paths.length > 77 || data.paths.some(path => typeof path !== 'string' || !path.startsWith(`uploads/${id}/`) || !/^uploads\/[a-f0-9-]{36}\/[0-9]{3}-[a-f0-9]{64}\.part$/.test(path))) throw unavailable();
+    if (data.paths.length) { const removed = await service.storage.from(PART_BUCKET).remove(data.paths); if (removed.error) throw unavailable(); }
+    return { ...await multipartRpc('invox_finish_multipart_cleanup', { p_admin_id: admin.user_id, p_upload_id: id }), removedParts: data.paths.length };
+  }
   async function createUpload(body, admin) {
+    await opportunisticCleanup(admin);
     const file = fileManifest(body, false, uploadLimitBytes), version = versionValue(body.version);
     const extensionIndex = file.fileName.lastIndexOf('.');
     const extension = file.fileName.slice(extensionIndex);
     const baseName = file.fileName.slice(0, extensionIndex).normalize('NFKD').replace(/[^a-zA-Z0-9_.-]/g, '_');
     const safeName = `${baseName.slice(0, 180 - extension.length) || 'installer'}${extension}`;
     const path = `${file.platform}/${version}/${uuid()}-${safeName}`;
-    const created = await service.from('invox_uploads').insert({ path, platform: file.platform, file_name: file.fileName, size: file.size, version, created_by: admin.user_id });
-    if (created.error) throw unavailable();
+    await multipartRpc('invox_reserve_single_upload', { p_admin_id: admin.user_id, p_path: path, p_platform: file.platform, p_file_name: file.fileName, p_size: file.size, p_version: version, p_budget_bytes: storageBudgetBytes }, true);
     const data = resultData(await service.storage.from(BUCKET).createSignedUploadUrl(path, { upsert: false }));
     if (typeof data.token !== 'string' || !data.token || data.token.length > 4096) throw unavailable();
     return { path, token: data.token, signedUrl: signedStorageURL(data.signedUrl, true) };
   }
+  async function updateInstallerVersion(body, admin) {
+    if (!PLATFORMS.includes(body.platform)) throw invalidInput();
+    await multipartRpc('invox_update_installer_version', { p_admin_id: admin.user_id, p_platform: body.platform, p_version: versionValue(body.version) }, true);
+    invalidatePublic();
+    return adminState(admin);
+  }
   async function saveRelease(body, admin) {
     const version = versionValue(body.version);
     if (typeof body.releaseNotes !== 'string' || body.releaseNotes.length > 5000 || !Array.isArray(body.files) || body.files.length > 3) throw invalidInput();
-    const files = body.files.map(file => fileManifest(file, true, uploadLimitBytes));
+    const files = body.files.map(file => {
+      const fileVersion = file?.version === undefined ? version : versionValue(file.version);
+      if (file?.kind !== 'multipart') return { ...fileManifest(file, true, uploadLimitBytes), version: fileVersion };
+      const metadata = fileManifest(file, false, UPLOAD_LIMIT);
+      if (!SHA256.test(file.sha256)) throw invalidInput();
+      return { kind: 'multipart', uploadId: uploadId(file.uploadId), ...metadata, version: fileVersion, sha256: file.sha256 };
+    });
     if (new Set(files.map(file => file.platform)).size !== files.length) throw invalidInput();
     await Promise.all(files.map(async file => {
+      if (file.kind === 'multipart') return;
       const pending = await service.from('invox_uploads').select('path,platform,file_name,size,version,created_by').eq('path', file.path).maybeSingle();
       if (pending.error) throw unavailable();
       const row = pending.data;
-      if (!row || row.created_by !== admin.user_id || row.platform !== file.platform || row.file_name !== file.fileName || Number(row.size) !== file.size || row.version !== version) throw fault('invalid_input', 'Um instalador não corresponde ao envio autorizado. Envie o arquivo novamente.');
+      if (!row || row.created_by !== admin.user_id || row.platform !== file.platform || row.file_name !== file.fileName || Number(row.size) !== file.size) throw fault('invalid_input', 'Um instalador não corresponde ao envio autorizado. Envie o arquivo novamente.');
       const stored = await service.storage.from(BUCKET).info(file.path);
       if (stored.error || !stored.data || Number(stored.data.size) !== file.size) throw fault('invalid_input', 'Um instalador não terminou de ser enviado ou possui tamanho diferente. Envie o arquivo novamente.');
     }));
-    const published = await service.rpc('invox_publish_release', { p_version: version, p_release_notes: body.releaseNotes.trim(), p_files: files, p_admin_id: admin.user_id });
-    if (published.error) throw unavailable();
+    await multipartRpc('invox_publish_release', { p_version: version, p_release_notes: body.releaseNotes.trim(), p_files: files, p_admin_id: admin.user_id }, true);
     invalidatePublic();
     return adminState(admin);
   }
@@ -431,10 +569,11 @@ export function createHandler(dependencies) {
         case 'track-view': return json(await trackView(request, body));
         case 'login': return json(await login(request, body));
         case 'download': return json(await download(request, body));
+        case 'download-part': return json(await downloadPart(request, body));
         case 'logout-download': return json(await logoutDownload(request, body));
         case 'feedback': return json(await feedback(request, body), 201);
       }
-      if (!['admin-state', 'analytics', 'reset-analytics', 'save-access', 'update-feedback', 'create-upload', 'save-release', 'save-announcement', 'set-announcement-active'].includes(body.action)) throw invalidInput();
+      if (!['admin-state', 'analytics', 'reset-analytics', 'save-access', 'update-feedback', 'create-upload', 'save-release', 'update-installer-version', 'create-multipart-upload', 'multipart-part-upload', 'confirm-multipart-part', 'finish-multipart-upload', 'preview-multipart-upload', 'cleanup-multipart-upload', 'save-announcement', 'set-announcement-active'].includes(body.action)) throw invalidInput();
       const admin = await authenticate(request);
       if (!['admin-state', 'analytics'].includes(body.action)) await rateLimit(request, 'admin_write', 60, 60, admin.user_id);
       switch (body.action) {
@@ -446,7 +585,14 @@ export function createHandler(dependencies) {
         case 'save-announcement': return json(await saveAnnouncement(request, body, admin), 201);
         case 'set-announcement-active': return json(await setAnnouncementActive(body));
         case 'create-upload': return json(await createUpload(body, admin));
+        case 'create-multipart-upload': return json(await createMultipartUpload(body, admin));
+        case 'multipart-part-upload': return json(await multipartPartUpload(body, admin));
+        case 'confirm-multipart-part': return json(await confirmMultipartPart(body, admin));
+        case 'finish-multipart-upload': return json(await multipartRpc('invox_finish_multipart_upload', { p_admin_id: admin.user_id, p_upload_id: uploadId(body.uploadId) }));
+        case 'preview-multipart-upload': return json(await mintMultipartDownload(uploadId(body.uploadId), await getSettings(), admin));
+        case 'cleanup-multipart-upload': return json(await cleanupMultipartUpload(body, admin));
         case 'save-release': return json(await saveRelease(body, admin));
+        case 'update-installer-version': return json(await updateInstallerVersion(body, admin));
       }
       throw invalidInput();
     } catch (error) {
@@ -465,11 +611,12 @@ if (typeof Deno !== 'undefined') {
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
   const uploadLimitBytes = Number(Deno.env.get('INVOX_UPLOAD_LIMIT_BYTES') || DEFAULT_UPLOAD_LIMIT);
+  const storageBudgetBytes = Number(Deno.env.get('INVOX_STORAGE_BUDGET_BYTES') || DEFAULT_STORAGE_BUDGET);
   const options = { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }, global: { fetch: createBoundedFetch() } };
   if (!url || !serviceKey || !anonKey) {
     Deno.serve(createUnavailableHandler());
   } else {
     const service = createClient(url, serviceKey, options);
-    Deno.serve(createHandler({ service, rateSecret: serviceKey, storageOrigin: new URL(url).origin, publicCacheTtlMs: 2000, uploadLimitBytes, createAuthClient: () => createClient(url, anonKey, options) }));
+    Deno.serve(createHandler({ service, rateSecret: serviceKey, storageOrigin: new URL(url).origin, publicCacheTtlMs: 2000, uploadLimitBytes, storageBudgetBytes, createAuthClient: () => createClient(url, anonKey, options) }));
   }
 }

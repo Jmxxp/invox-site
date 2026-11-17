@@ -175,6 +175,16 @@ const ticket=(path='windows/1.1.0/upload-id/INVOX.exe')=>({path,token:'signed-up
   checks.push('Page view tracking is anonymous/keepalive; analytics report requires admin session');
  }
  {
+  const {api,state,localStorage}=harness();state.session=sessionFixture;
+  state.responses.push(ok({url:'part-signed-url',expiresAt:'2026-11-17T19:00:00Z'}));
+  await api.downloadPart('opaque-download-ticket',2);
+  assert.deepEqual(state.fetchCalls[0].body,{ticket:'opaque-download-ticket',index:2,action:'download-part'});
+  assert.equal(state.fetchCalls[0].options.headers.Authorization,undefined);
+  assert.equal(state.fetchCalls[0].options.cache,'no-store');assert.equal(state.fetchCalls[0].options.credentials,'omit');
+  assert.equal(localStorage.getItem('invox-download-access-wsfdwyghqqaerivyrbil-v1'),null);
+  checks.push('Multipart part signing is public and scoped to its opaque ticket/index without admin Bearer or ticket persistence');
+ }
+ {
   const key='invox-admin-auth-v1',raw=JSON.stringify(sessionFixture);
   const local=storage(),legacy=storage({[key]:raw});
   const first=harness({localStorage:local,sessionStorage:legacy});
@@ -220,6 +230,16 @@ const ticket=(path='windows/1.1.0/upload-id/INVOX.exe')=>({path,token:'signed-up
   finish(ok({accessSession:{token:'d'.repeat(64),expiresAt:new Date(Date.now()+86400000).toISOString()}}));
   await pending;assert.equal(h.api.hasDownloadSession(),false);
   checks.push('A delayed download response cannot restore private access after logout');
+ }
+ {
+  const h=harness();
+  await assert.rejects(()=>h.api.updateInstallerVersion('windows','1.2.0'),e=>e.code==='unauthorized');
+  assert.equal(h.state.fetchCalls.length,0);
+  h.state.session=sessionFixture;h.state.responses.push(ok({settings:{version:'1.1.0'},history:[]}));
+  await h.api.updateInstallerVersion('macos','1.2.3');
+  assert.deepEqual(h.state.fetchCalls[0].body,{action:'update-installer-version',platform:'macos',version:'1.2.3'});
+  assert.equal(h.state.fetchCalls[0].options.headers.Authorization,'Bearer access-token-fixture');
+  checks.push('Per-platform version edits use the authenticated endpoint without uploading file bytes');
  }
  console.log(JSON.stringify({result:'PASS',checks},null,2));
 })().catch(error=>{console.error(error);process.exitCode=1;});

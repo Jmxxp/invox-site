@@ -17,6 +17,7 @@
   });
   var drafts = new Map();
   var busyId = null;
+  var sessionEpoch = 0;
   function el(tag, className, content) {
     var element = document.createElement(tag);
     if (className) element.className = className;
@@ -140,7 +141,7 @@
     note.value = drafts.has(item.id) ? drafts.get(item.id) : item.note;
     note.disabled = Boolean(busyId);
     note.setAttribute('aria-describedby', 'reply-note-help feedback-send-note');
-    var noteHelp = el('p', 'field-help note-status', 'Salve a anotação para mantê-la no painel.');
+    var noteHelp = el('p', 'field-help note-status', drafts.has(item.id) ? 'Alterações não salvas.' : 'Salve a anotação para mantê-la no painel.');
     noteHelp.id = 'reply-note-help';
     note.addEventListener('input', function () {
       drafts.set(item.id, note.value);
@@ -176,25 +177,32 @@
   }
   async function saveItem(item, status) {
     if (busyId) return;
+    var epoch = sessionEpoch;
     busyId = item.id;
     var note = drafts.has(item.id) ? drafts.get(item.id) : item.note;
     detail.querySelectorAll('button').forEach(function (button) { button.disabled = true; });
     try {
       var saved = await window.InvoxBackend.updateFeedback({id:item.id,status:status,note:note});
+      if (epoch !== sessionEpoch) return;
       var index = state.items.findIndex(function (row) { return row.id === item.id; });
       if (index >= 0) state.items[index] = saved;
       if (drafts.get(item.id) === note) drafts.delete(item.id);
       window.AdminUI.toast('Feedback atualizado.');
     } catch (error) {
-      window.AdminUI.toast(error.message || 'Não foi possível salvar o feedback.', 'error');
+      if (epoch === sessionEpoch) window.AdminUI.toast(error.message || 'Não foi possível salvar o feedback.', 'error');
     } finally {
-      busyId = null;
-      render();
+      if (epoch === sessionEpoch) {
+        busyId = null;
+        render();
+      }
     }
   }
   function render() {
-    var focusedNote = document.activeElement && document.activeElement.id === 'reply-note' ? document.activeElement : null;
-    var selection = focusedNote ? [focusedNote.selectionStart, focusedNote.selectionEnd, focusedNote.scrollTop] : null;
+    var active = document.activeElement;
+    var editing = active && active.id === 'reply-note' ? {
+      selectedId:state.selectedId,start:active.selectionStart,end:active.selectionEnd,
+      direction:active.selectionDirection,scrollTop:active.scrollTop
+    } : null;
     var visible = filteredItems();
     if (!visible.some(function (item) { return item.id === state.selectedId; })) {
       state.selectedId = visible.length ? visible[0].id : null;
@@ -202,16 +210,18 @@
     updateCounts();
     renderList(visible);
     renderDetail(visible.find(function (item) { return item.id === state.selectedId; }));
-    if (selection) {
-      var note = document.getElementById('reply-note');
-      if (note && !note.disabled && note.focus) {
-        note.focus({ preventScroll: true });
-        if (note.setSelectionRange) note.setSelectionRange(selection[0], selection[1]);
-        note.scrollTop = selection[2];
+    if (editing && editing.selectedId === state.selectedId) {
+      var restored = detail.querySelector('#reply-note');
+      if (restored && !restored.disabled) {
+        restored.focus?.({preventScroll:true});
+        if (Number.isInteger(editing.start) && Number.isInteger(editing.end)) restored.setSelectionRange?.(editing.start,editing.end,editing.direction);
+        restored.scrollTop = editing.scrollTop;
       }
     }
   }
   function clear() {
+    sessionEpoch += 1;
+    busyId = null;
     state.items = [];
     drafts.clear();
     state.filter = 'all';
