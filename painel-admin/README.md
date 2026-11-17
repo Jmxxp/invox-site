@@ -22,7 +22,7 @@ O painel consulta novidades a cada vinte segundos enquanto estiver aberto e auto
 
 Na área **Recados no jogo**, informe título e mensagem e use **Publicar para todos**. A publicação cria um ID novo. A lista permite desativar ou reativar os recados; reativar o mesmo ID não força novo aviso para quem já o fechou. O jogo aberto e conectado consulta até vinte recados ativos recentes. Não há notificação para um jogo fechado. Os limites são cem caracteres no título e dois mil na mensagem.
 
-As migrações `20261117193242_invox_game_feedback.sql` e `20261117194103_invox_game_announcements.sql` e a função `invox-api` versão 6 já estão implantadas no projeto INVOX. O teste HTTPS dos clientes do jogo confirmou gravação real de feedback e sugestão sem contato; os dois registros temporários foram removidos por UUID. A publicação desta interface e o teste visual de login administrativo no navegador ainda estão pendentes desta revisão. Consulte `../supabase/README.md`.
+As migrações `20261117193242_invox_game_feedback.sql` e `20261117194103_invox_game_announcements.sql` e a função `invox-api` versão 6 já estão implantadas no projeto INVOX. O teste HTTPS dos clientes do jogo confirmou gravação real de feedback e sugestão sem contato; os dois registros temporários foram removidos por UUID. A interface está publicada em https://jmxxp.github.io/invox-site/admin/, com Actions e recursos HTTPS conferidos. A função mesclada com multipart, Realtime e versões independentes foi publicada como versão 8. O teste visual de login administrativo no navegador não foi repetido. Consulte `../supabase/README.md`.
 
 ## Acesso aos downloads
 

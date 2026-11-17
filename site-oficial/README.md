@@ -25,7 +25,7 @@ Os botões não usam mais os antigos links Mediafire. O servidor confere a liber
 
 Cada botão permanece desativado até o servidor confirmar que existe instalador para a plataforma. A página reconsulta a disponibilidade ao receber foco ou voltar à aba.
 
-A configuração inicial é 1.1.0. O backend `invox-api` versão 6 e as migrações do jogo estão implantados; a disponibilidade de cada plataforma continua dependendo de instaladores reais publicados pelo painel. O teste HTTPS dos clientes Godot confirmou feedback e sugestão gravados no banco sem contato. Esta revisão do frontend/CDN ainda aguarda publicação; consulte `../supabase/README.md`.
+A configuração inicial é 1.1.0. O backend `invox-api` versão 6 e as migrações do jogo estão implantados; a disponibilidade de cada plataforma continua dependendo de instaladores reais publicados pelo painel. O teste HTTPS dos clientes Godot confirmou feedback e sugestão gravados no banco sem contato. Site e painel estão publicados no GitHub Pages, com Actions e cinco recursos HTTPS conferidos. A API mesclada foi implantada como versão 8; consulte `../supabase/README.md`.
 
 A marca usa o PNG oficial com filtro para retirar o fundo preto. A hero usa uma única instância da animação interativa de blocos, à direita do texto no desktop e abaixo dele no celular. A geometria das três formas preserva as 941 coordenadas verificadas do código original; materiais WebGL e enquadramento são adaptados ao navegador. A antiga arte `assets/hero-scene-3d.png` permanece apenas como imagem de compartilhamento; não é carregada como fundo da hero.
 
