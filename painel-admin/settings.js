@@ -9,6 +9,8 @@
   const passwordFields = document.getElementById('private-password-fields');
   const password = document.getElementById('site-password');
   const passwordToggle = document.getElementById('toggle-password');
+  const universal = document.getElementById('universal-enabled');
+  const universalSettings = document.getElementById('universal-key-settings');
   const version = document.getElementById('release-version');
   const notes = document.getElementById('release-notes');
   const versionPattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*)?(?:\+[0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*)?$/;
@@ -19,7 +21,7 @@
   };
   const files = { windows: null, macos: null, android: null };
   const defaultUploadLimitBytes = 1610612736;
-  let savedSettings = { visibility: 'public', hasPassword: false, version: '1.1.0', releaseNotes: '', uploadLimitBytes: defaultUploadLimitBytes };
+  let savedSettings = { visibility: 'public', hasPassword: false, universalEnabled: true, version: '1.1.0', releaseNotes: '', uploadLimitBytes: defaultUploadLimitBytes };
   let accessDirty = false;
   let releaseDirty = false;
   let busy = false;
@@ -41,10 +43,176 @@
   const historyEmpty = document.getElementById('release-history-empty');
   const historyCount = document.getElementById('release-history-count');
   const historyDate = new Intl.DateTimeFormat('pt-BR', {timeZone:'America/Sao_Paulo',dateStyle:'short',timeStyle:'medium'});
+  const codeForm = document.getElementById('download-code-form');
+  const codeFields = {label:document.getElementById('download-code-label'),max:document.getElementById('download-code-max'),validity:document.getElementById('download-code-validity')};
+  let downloadCodes = [], codeBusy = false, codesAuthenticated = false, codeAttempt = null;
+  let secretCode = '', secretEntryId = null, secretView = 0;
 
 
   function toast(message, tone) {
     if (window.AdminUI) window.AdminUI.toast(message, tone || 'success');
+  }
+  function codeStatus(text, tone) {
+    const status = document.getElementById('download-code-status');
+    status.textContent = text; status.dataset.tone = tone || '';
+  }
+  function codeState(row) {
+    if (row.revokedAt || row.status === 'revoked') return 'revoked';
+    if (row.status === 'expired' || (row.expiresAt && Date.parse(row.expiresAt) <= Date.now())) return 'expired';
+    if (row.status === 'exhausted' || row.remainingUses <= 0) return 'exhausted';
+    return row.status === 'active' ? 'active' : 'unavailable';
+  }
+  function validCode(row) {
+    return row && typeof row.id === 'string' && /^[a-f0-9-]{36}$/i.test(row.id)
+      && (row.label == null || typeof row.label === 'string') && Number.isInteger(row.maxUses) && row.maxUses >= 1 && row.maxUses <= 1000
+      && Number.isInteger(row.usedCount) && row.usedCount >= 0 && Number.isInteger(row.remainingUses) && row.remainingUses >= 0 && row.remainingUses <= row.maxUses;
+  }
+  function mergeCodes(rows) {
+    const merged = new Map(downloadCodes.map(function (row) { return [row.id,row]; }));
+    (Array.isArray(rows) ? rows : []).forEach(function (row) {
+      if (!validCode(row)) return;
+      const old = merged.get(row.id);
+      merged.set(row.id,old ? Object.assign({},row,{label:row.label || '',usedCount:Math.max(old.usedCount,row.usedCount),remainingUses:Math.min(old.remainingUses,row.remainingUses),revokedAt:old.revokedAt || row.revokedAt}) : Object.assign({},row,{label:row.label || ''}));
+      merged.get(row.id).status = codeState(merged.get(row.id));
+    });
+    downloadCodes = Array.from(merged.values()).sort(function (a,b) { return (Date.parse(b.createdAt) || 0) - (Date.parse(a.createdAt) || 0); }).slice(0,100);
+  }
+  function hideCode() {
+    secretView += 1; secretCode = ''; secretEntryId = null;
+    document.getElementById('download-code-secret').value = '';
+    document.getElementById('download-code-result-label').textContent = '';
+    document.getElementById('download-code-result').hidden = true;
+  }
+  function codeControls() {
+    Object.values(codeFields).forEach(function (field) { field.disabled = codeBusy || !codesAuthenticated; });
+    document.getElementById('download-code-create').disabled = codeBusy || !codesAuthenticated;
+    document.getElementById('download-code-create-label').textContent = codeBusy ? 'Aguarde…' : secretCode ? 'Gerar outro código' : 'Gerar código';
+    document.getElementById('download-code-copy').disabled = !codesAuthenticated || !secretCode;
+    document.getElementById('download-code-hide').disabled = !codesAuthenticated || !secretCode;
+    codeForm.setAttribute('aria-busy',String(codeBusy));
+  }
+  function codeElement(tag, className, text) {
+    const element = document.createElement(tag);
+    if (className) element.className = className;
+    if (text !== undefined) element.textContent = String(text);
+    return element;
+  }
+  function codeDate(value) {
+    const stamp = Date.parse(value);
+    return Number.isFinite(stamp) ? historyDate.format(new Date(stamp)) + ' · Brasília' : 'Data não informada';
+  }
+  function renderCodes() {
+    const list = document.getElementById('download-code-list');
+    list.replaceChildren();
+    document.getElementById('download-code-count').textContent = downloadCodes.length + (downloadCodes.length === 1 ? ' código' : ' códigos');
+    document.getElementById('download-code-empty').hidden = downloadCodes.length > 0;
+    document.getElementById('download-code-empty').textContent = codesAuthenticated ? 'Nenhum código criado ainda.' : 'Entre no painel para consultar os códigos.';
+    const states = {active:'Disponível',exhausted:'Esgotado',expired:'Expirado',revoked:'Revogado',unavailable:'Indisponível'};
+    downloadCodes.forEach(function (row) {
+      const status = codeState(row), card = codeElement('article','download-code-entry');
+      card.setAttribute('role','listitem');
+      const content = codeElement('div');
+      content.append(codeElement('h5','',row.label || 'Sem identificação'),codeElement('span','download-code-mask',row.prefix ? String(row.prefix) + ' ••••' : 'Código protegido'));
+      const usage = codeElement('p','download-code-usage');
+      usage.append(codeElement('strong','',row.remainingUses + ' / ' + row.maxUses),codeElement('span','',row.remainingUses === 1 ? 'download restante' : 'downloads restantes'));
+      const meta = codeElement('div','download-code-meta');
+      meta.append(codeElement('span','','Criado em ' + codeDate(row.createdAt)),codeElement('span','',row.expiresAt ? 'Expira em ' + codeDate(row.expiresAt) : 'Sem expiração'));
+      content.append(usage,meta);
+      const controls = codeElement('div','download-code-entry-controls'), badge = codeElement('span','download-code-state',states[status]);
+      badge.dataset.state = status; controls.append(badge);
+      if (status === 'active') {
+        const revoke = codeElement('button','button button-ghost button-small','Revogar');
+        revoke.type = 'button'; revoke.dataset.revokeCode = row.id;
+        revoke.setAttribute('aria-label','Revogar código ' + (row.label || row.prefix || 'sem identificação'));
+        revoke.disabled = codeBusy || !codesAuthenticated;
+        revoke.addEventListener('click',function () { return revokeCode(row.id); });
+        controls.append(revoke);
+      }
+      card.append(content,controls); list.append(card);
+    });
+    const created = downloadCodes.find(function (row) { return row.id === secretEntryId; });
+    if (created && codeState(created) !== 'active') {
+      hideCode();
+      if (!codeBusy) codeStatus('Este código não está mais disponível para novos downloads.');
+    }
+    codeControls();
+  }
+  function codeParameters() {
+    const label = codeFields.label.value.trim(), maxUses = Number(codeFields.max.value);
+    const expiry = codeFields.validity.value, validForHours = expiry === '' ? null : Number(expiry);
+    codeFields.label.setCustomValidity(label.length <= 80 ? '' : 'Use uma identificação de até 80 caracteres.');
+    codeFields.max.setCustomValidity(Number.isInteger(maxUses) && maxUses >= 1 && maxUses <= 1000 ? '' : 'Escolha de 1 a 1000 downloads.');
+    codeFields.validity.setCustomValidity(validForHours === null || [24,168,720].includes(validForHours) ? '' : 'Selecione uma validade disponível.');
+    const browserValid = codeForm.reportValidity();
+    return browserValid && label.length <= 80 && Number.isInteger(maxUses) && maxUses >= 1 && maxUses <= 1000 && (validForHours === null || [24,168,720].includes(validForHours)) ? {label:label,maxUses:maxUses,validForHours:validForHours} : null;
+  }
+  async function createCode(event) {
+    event.preventDefault();
+    if (codeBusy || !codesAuthenticated) return;
+    const params = codeParameters(); if (!params) return;
+    const fingerprint = JSON.stringify(params), epoch = sessionEpoch;
+    try {
+      if (!codeAttempt || codeAttempt.fingerprint !== fingerprint) {
+        const cryptography = window.crypto || globalThis.crypto;
+        if (typeof cryptography?.randomUUID !== 'function') throw new Error('Use um navegador atualizado para gerar códigos.');
+        codeAttempt = {id:cryptography.randomUUID(),fingerprint:fingerprint};
+      }
+      const attempt = codeAttempt;
+      hideCode(); codeBusy = true; renderCodes(); codeStatus('Gerando código…');
+      const result = await window.InvoxBackend.createDownloadCode(Object.assign({id:attempt.id},params));
+      if (epoch !== sessionEpoch) return;
+      if (!result || typeof result.code !== 'string' || !result.code || result.code.length > 256 || !validCode(result.entry)
+        || result.entry.id !== attempt.id || result.entry.maxUses !== params.maxUses || !Array.isArray(result.downloadCodes)) throw new Error('Não foi possível confirmar o código criado. Tente novamente com os mesmos campos.');
+      mergeCodes(result.downloadCodes); mergeCodes([result.entry]);
+      const current = downloadCodes.find(function (row) { return row.id === attempt.id; }) || result.entry;
+      codeAttempt = null;
+      if (codeState(current) === 'active') {
+        secretCode = result.code; secretEntryId = current.id; secretView += 1;
+        document.getElementById('download-code-secret').value = secretCode;
+        document.getElementById('download-code-result-label').textContent = (current.label || 'Sem identificação') + ' · ' + current.maxUses + (current.maxUses === 1 ? ' download' : ' downloads');
+        document.getElementById('download-code-result').hidden = false;
+        codeStatus('Código criado. Copie e compartilhe com a pessoa autorizada.','success');
+      } else codeStatus('Este código já não possui acesso disponível. Gere outro código.');
+      renderCodes();
+    } catch (error) {
+      if (epoch === sessionEpoch) codeStatus(error.message || 'Não foi possível confirmar a criação. Tente novamente sem alterar os campos.','error');
+    } finally {
+      if (epoch === sessionEpoch) { codeBusy = false; renderCodes(); }
+    }
+  }
+  async function revokeCode(id) {
+    if (codeBusy || !codesAuthenticated) return;
+    const item = downloadCodes.find(function (row) { return row.id === id; });
+    if (!item || codeState(item) !== 'active') return;
+    const epoch = sessionEpoch;
+    codeBusy = true; renderCodes(); codeStatus('Revogando código…');
+    try {
+      const result = await window.InvoxBackend.revokeDownloadCode(id);
+      if (epoch !== sessionEpoch) return;
+      const confirmed = Array.isArray(result?.downloadCodes) && result.downloadCodes.find(function (row) { return row.id === id && (row.revokedAt || row.status === 'revoked'); });
+      if (!confirmed) throw new Error('O servidor não confirmou a revogação. Atualize a lista e tente novamente.');
+      mergeCodes(result.downloadCodes);
+      if (secretEntryId === id) hideCode();
+      codeStatus('Código revogado. Ele não libera novos downloads.','success');
+    } catch (error) {
+      if (epoch === sessionEpoch) codeStatus(error.message || 'Não foi possível revogar o código.','error');
+    } finally {
+      if (epoch === sessionEpoch) { codeBusy = false; renderCodes(); }
+    }
+  }
+  async function copyCode() {
+    if (!secretCode || !codesAuthenticated) return;
+    const code = secretCode, view = secretView, epoch = sessionEpoch;
+    try {
+      if (typeof window.navigator?.clipboard?.writeText !== 'function') throw new Error('clipboard unavailable');
+      await window.navigator.clipboard.writeText(code);
+      if (epoch === sessionEpoch && view === secretView && secretCode === code) codeStatus('Código copiado.','success');
+    } catch {
+      if (epoch !== sessionEpoch || view !== secretView) return;
+      const input = document.getElementById('download-code-secret');
+      input.focus(); input.select?.(); input.setSelectionRange?.(0,input.value.length);
+      codeStatus('Selecione o código e copie manualmente. A cópia automática não foi confirmada.');
+    }
   }
 
   function setPasswordVisibility(visible) {
@@ -60,14 +228,17 @@
 
   function updateVisibility() {
     const isPrivate = selectedVisibility() === 'private';
+    const useUniversal = universal.checked;
     radios.forEach(function (radio) {
       radio.closest('.visibility-option').classList.toggle('is-selected', radio.checked);
     });
-    passwordFields.hidden = !isPrivate;
-    password.required = isPrivate && !savedSettings.hasPassword;
-    password.disabled = !isPrivate;
+    universalSettings.hidden = !isPrivate;
+    passwordFields.hidden = !isPrivate || !useUniversal;
+    password.required = isPrivate && useUniversal && !savedSettings.hasPassword;
+    password.disabled = !isPrivate || !useUniversal || busy;
+    passwordToggle.disabled = password.disabled;
     password.setCustomValidity('');
-    if (!isPrivate) {
+    if (!isPrivate || !useUniversal) {
       password.value = '';
     }
     setPasswordVisibility(false);
@@ -77,14 +248,15 @@
     const isPrivate = savedSettings.visibility === 'private';
     document.getElementById('access-preview-status').classList.toggle('is-private', isPrivate);
     document.getElementById('access-preview-status').dataset.visibility = savedSettings.visibility;
-    document.getElementById('access-preview-status').textContent = isPrivate ? 'Downloads com senha' : 'Downloads liberados';
+    document.getElementById('access-preview-status').textContent = isPrivate ? (savedSettings.universalEnabled !== false ? 'Chave e códigos de acesso' : 'Downloads por código') : 'Downloads liberados';
     document.getElementById('access-preview-icon').className = 'fa-solid ' + (isPrivate ? 'fa-lock' : 'fa-globe');
     document.getElementById('access-preview-description').textContent = isPrivate
-      ? 'Cada download exige a senha configurada e recebe um link temporário.'
+      ? (savedSettings.universalEnabled !== false ? 'Use a chave universal ou um código válido para liberar um download protegido.' : 'A chave universal está desativada. O acesso exige um código válido com downloads disponíveis.')
       : 'Qualquer visitante pode baixar os instaladores disponíveis diretamente pelo site.';
   }
 
   radios.forEach(function (radio) { radio.addEventListener('change', updateVisibility); });
+  universal.addEventListener('change', function () { accessDirty = true; updateVisibility(); });
   passwordToggle.addEventListener('click', function () { setPasswordVisibility(password.type === 'password'); });
   password.addEventListener('input', function () { password.setCustomValidity(''); });
   accessForm.addEventListener('input', function () { accessDirty = true; });
@@ -101,11 +273,11 @@
     event.preventDefault();
     if (busy) return;
     const isPrivate = selectedVisibility() === 'private';
-    if (isPrivate && ((!savedSettings.hasPassword && !password.value) || (password.value && (password.value.length < 8 || !password.value.trim())))) {
+    if (isPrivate && universal.checked && ((!savedSettings.hasPassword && !password.value) || (password.value && (password.value.length < 8 || !password.value.trim())))) {
       password.setCustomValidity('Use uma senha com pelo menos 8 caracteres.');
     }
     if (!accessForm.reportValidity()) return;
-    const payload = {visibility:isPrivate ? 'private' : 'public',password:isPrivate ? password.value : ''};
+    const payload = {visibility:isPrivate ? 'private' : 'public',password:isPrivate && universal.checked ? password.value : '',universalEnabled:universal.checked};
     const epoch = sessionEpoch;
     busy = true;
     setBusy(accessForm, true);
@@ -113,6 +285,7 @@
       const settings = await window.InvoxBackend.saveAccess(payload);
       if (epoch !== sessionEpoch) return;
       savedSettings = Object.assign({}, savedSettings, settings);
+      universal.checked = savedSettings.universalEnabled !== false;
       password.value = '';
       accessDirty = false;
       renderAccessPreview();
@@ -385,8 +558,12 @@
     if (state.storage) savedStorage = Object.assign({}, state.storage);
     if (!accessDirty) {
       radios.forEach(function (radio) { radio.checked = radio.value === savedSettings.visibility; });
+      universal.checked = savedSettings.universalEnabled !== false;
       password.value = '';
     }
+    codesAuthenticated = true;
+    mergeCodes(state.downloadCodes);
+    renderCodes();
     if (!releaseDirty) {
       version.value = savedSettings.version;
       notes.value = savedSettings.releaseNotes || '';
@@ -424,7 +601,12 @@
     savedStorage = null;
     accessForm.reset();
     releaseForm.reset();
-    savedSettings = {visibility:'public',hasPassword:false,version:'1.1.0',releaseNotes:'',uploadLimitBytes:defaultUploadLimitBytes};
+    savedSettings = {visibility:'public',hasPassword:false,universalEnabled:true,version:'1.1.0',releaseNotes:'',uploadLimitBytes:defaultUploadLimitBytes};
+    universal.checked = true;
+    codesAuthenticated = false; codeBusy = false; codeAttempt = null; downloadCodes = [];
+    hideCode(); codeForm.reset(); codeFields.label.value = ''; codeFields.max.value = '1'; codeFields.validity.value = '';
+    Object.values(codeFields).forEach(function (field) { field.setCustomValidity(''); });
+    codeStatus(''); renderCodes();
     accessDirty = false;
     releaseDirty = false;
     password.value = '';
@@ -453,13 +635,21 @@
     updateVisibility();
   }
   window.AdminSettings = {clear:clear,getState:function () {
-    return {settings:Object.assign({},savedSettings),accessDirty:accessDirty,releaseDirty:releaseDirty,selectedFiles:Object.fromEntries(Object.keys(platforms).map(function (platform) { return [platform,fileMetadata(files[platform])]; })),platformVersions:Object.fromEntries(Object.keys(platforms).map(function (platform) { return [platform,platformVersions[platform].value]; }))};
+    return {settings:Object.assign({},savedSettings),accessDirty:accessDirty,releaseDirty:releaseDirty,selectedFiles:Object.fromEntries(Object.keys(platforms).map(function (platform) { return [platform,fileMetadata(files[platform])]; })),platformVersions:Object.fromEntries(Object.keys(platforms).map(function (platform) { return [platform,platformVersions[platform].value]; })),downloadCodes:downloadCodes.map(function (row) { return Object.assign({},row); }),codeBusy:codeBusy};
   }};
   document.addEventListener('invox:admin-state', function (event) { loadState(event.detail); });
   document.addEventListener('invox:admin-clear', clear);
+  codeForm.addEventListener('submit',createCode);
+  Object.values(codeFields).forEach(function (field) {
+    const changed = function () { if (codeBusy) return; codeAttempt = null; field.setCustomValidity(''); if (!secretCode) codeStatus(''); };
+    field.addEventListener('input',changed); field.addEventListener('change',changed);
+  });
+  document.getElementById('download-code-copy').addEventListener('click',copyCode);
+  document.getElementById('download-code-hide').addEventListener('click',function () { hideCode(); codeStatus('Código ocultado. A permissão criada continua válida.'); codeControls(); });
   updateVisibility();
   renderAccessPreview();
   updatePlatformButtons();
   renderHistory([], true);
+  renderCodes();
   if (window.AdminUI && window.AdminUI.lastState) loadState(window.AdminUI.lastState);
 })();

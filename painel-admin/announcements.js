@@ -11,6 +11,12 @@
   let items = [];
   let busy = false;
   let epoch = 0;
+  function renderPreview() {
+    const heading = document.getElementById('announcement-preview-title');
+    const copy = document.getElementById('announcement-preview-message');
+    if (heading) heading.textContent = title.value.trim() || 'Seu próximo aviso começa aqui.';
+    if (copy) copy.textContent = message.value.trim() || 'Escreva a mensagem ao lado para conferir a prévia.';
+  }
   function element(tag, className, text) {
     const node = document.createElement(tag);
     if (className) node.className = className;
@@ -70,15 +76,16 @@
       const saved = await window.InvoxBackend.saveAnnouncement({ title: title.value, message: message.value });
       if (epoch !== currentEpoch) return;
       if (!saved?.id) throw new Error('O servidor não confirmou a publicação.');
-      remember(saved); form.reset();
+      remember(saved); form.reset(); renderPreview();
       status.textContent = 'Recado publicado para os jogadores. Ele aparecerá na próxima consulta do jogo.';
     } catch (error) {
       if (epoch === currentEpoch) status.textContent = error.message || 'Não foi possível publicar. O texto foi preservado.';
     } finally { if (epoch === currentEpoch) { setBusy(false); render(); } }
   });
-  [title, message].forEach(field => field.addEventListener('input', () => field.setCustomValidity('')));
+  [title, message].forEach(field => field.addEventListener('input', () => { field.setCustomValidity(''); renderPreview(); }));
   document.addEventListener('invox:admin-state', event => { items = event.detail.announcements || []; render(); });
-  document.addEventListener('invox:admin-clear', () => { epoch++; items = []; form.reset(); status.textContent = ''; setBusy(false); render(); });
+  document.addEventListener('invox:admin-clear', () => { epoch++; items = []; form.reset(); status.textContent = ''; setBusy(false); render(); renderPreview(); });
   if (window.AdminUI?.lastState) items = window.AdminUI.lastState.announcements || [];
   render();
+  renderPreview();
 })();

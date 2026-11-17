@@ -30,13 +30,20 @@ class Element {
 const ids = Object.fromEntries([
   'access-form', 'release-form', 'private-password-fields', 'site-password', 'toggle-password',
   'release-version', 'release-notes', 'access-preview-status', 'access-preview-icon',
-  'access-preview-description', 'summary-version', 'release-history-list', 'release-history-empty', 'release-history-count'
+  'access-preview-description', 'summary-version', 'release-history-list', 'release-history-empty', 'release-history-count',
+  'universal-enabled','universal-key-settings','download-code-form','download-code-label','download-code-max','download-code-validity',
+  'download-code-create','download-code-create-label','download-code-result','download-code-result-label','download-code-secret',
+  'download-code-copy','download-code-hide','download-code-status','download-code-count','download-code-empty','download-code-list'
 ].map(id => [id, new Element()]));
 const accessForm = ids['access-form'];
 const releaseForm = ids['release-form'];
 const password = ids['site-password'];
 const version = ids['release-version'];
 const notes = ids['release-notes'];
+const universal=ids['universal-enabled'];universal.checked=true;
+const codeForm=ids['download-code-form'];ids['download-code-max'].value='1';ids['download-code-validity'].value='';
+codeForm.reportValidity=()=>['download-code-label','download-code-max','download-code-validity'].every(id=>!ids[id].validationMessage);
+codeForm.reset=()=>{ids['download-code-label'].value='';ids['download-code-max'].value='1';ids['download-code-validity'].value=''};
 const radios = ['public', 'private'].map(value => {
   const element = new Element(value); element.parent = new Element(); return element;
 });
@@ -70,7 +77,7 @@ Element.prototype.replaceChildren=function(...children){this.childNodes=children
 const cardElements=[];
 for(const item of Object.values(platformElements)){const card=new Element();cardElements.push(card);item.dropzone.parent=card;}
 for(const id of ['release-progress','upload-progress','upload-status','upload-limit'])ids[id]=new Element();
-const accessControls=[...radios,password,ids['toggle-password']];
+const accessControls=[...radios,password,universal,ids['toggle-password']];
 const releaseControls=[version,notes,...Object.values(platformElements).flatMap(row=>[row.input,row.remove,row.version,row.saveVersion])];
 accessForm.querySelectorAll=selector=>selector.includes('site-visibility')?radios:accessControls;
 releaseForm.querySelectorAll=()=>releaseControls;
@@ -95,7 +102,7 @@ const backend={
   server={...server,installers:server.installers.map(item=>item.platform===platform?{...item,version:nextVersion}:item)};return server;
  }
 };
-const window={InvoxBackend:backend,AdminUI:{toast:(...args)=>toasts.push(args)}};
+const copied=[];const window={InvoxBackend:backend,AdminUI:{toast:(...args)=>toasts.push(args)},crypto:require('node:crypto').webcrypto,navigator:{clipboard:{writeText:async text=>copied.push(text)}}};
 vm.runInNewContext(fs.readFileSync(path.resolve(__dirname,'../painel-admin/settings.js'),'utf8'),{window,document,AbortController},{filename:'settings.js'});
 const snapshot=()=>JSON.parse(JSON.stringify(window.AdminSettings.getState()));
 const chooseVisibility=value=>{radios.forEach(r=>{r.checked=r.value===value});radios.find(r=>r.checked).emit('change');accessForm.emit('change')};
@@ -137,12 +144,55 @@ async function independentVersions(){
  const metadataToasts=toasts.length;let finishMetadata;backend.updateInstallerVersion=()=>new Promise(resolve=>{finishMetadata=resolve});edit(win.version,'2.3.0');const late=win.saveVersion.emit('click');dispatch('invox:admin-clear');finishMetadata(server);await late.completion;assert.equal(toasts.length,metadataToasts);assert.equal(win.version.value,'');assert.equal(ids['release-history-list'].childNodes.length,0);assert.equal(win.saveVersion.hidden,true);
  server.history=[];
 }
+async function accessCodeControls(){
+ dispatch('invox:admin-clear');
+ server={...server,settings:{...server.settings,visibility:'private',hasPassword:false,universalEnabled:false},downloadCodes:[]};
+ backend.saveAccess=async payload=>{calls.access.push({...payload});if(failAccess)throw Error('offline');server.settings={...server.settings,visibility:payload.visibility,universalEnabled:payload.universalEnabled,hasPassword:payload.visibility==='private'&&Boolean(payload.password||server.settings.hasPassword)};return server.settings};
+ dispatch('invox:admin-state',server);
+ assert.equal(universal.checked,false);assert.equal(password.required,false);assert.equal(password.disabled,true);assert.equal(ids['access-preview-status'].textContent,'Downloads por código');
+ const accessCount=calls.access.length;await submit(accessForm);assert.equal(calls.access.length,accessCount+1,'private code-only mode can save without a universal hash');assert.equal(calls.access.at(-1).universalEnabled,false);assert.equal(calls.access.at(-1).password,'');
+ universal.checked=true;universal.emit('change');assert.equal(password.required,true);assert.equal(password.disabled,false);await submit(accessForm);assert.equal(calls.access.length,accessCount+1,'enabling without an existing key requires a key');
+ password.value='new-universal-key';password.emit('input');await submit(accessForm);assert.equal(calls.access.at(-1).universalEnabled,true);assert.equal(password.value,'');assert.equal(snapshot().settings.hasPassword,true);
+ universal.checked=false;universal.emit('change');dispatch('invox:admin-state',{...server,settings:{...server.settings,universalEnabled:true}});assert.equal(universal.checked,false,'realtime keeps an unsaved universal toggle');
+ failAccess=true;await submit(accessForm);assert.equal(snapshot().settings.universalEnabled,true,'failed save does not change the published preview');failAccess=false;await submit(accessForm);assert.equal(snapshot().settings.universalEnabled,false);
+ const codeCalls=[],secretById=new Map();let rows=[],failCreation=false,revokeMode='ok';
+ const rowCopies=()=>rows.map(row=>({...row}));
+ backend.createDownloadCode=async payload=>{
+  codeCalls.push({...payload});let row=rows.find(item=>item.id===payload.id);
+  if(!row){row={id:payload.id,label:payload.label,maxUses:payload.maxUses,usedCount:0,remainingUses:payload.maxUses,createdAt:'2026-11-17T20:00:00Z',expiresAt:null,revokedAt:null,status:'active',prefix:'IVX-TEST'};rows.push(row);secretById.set(payload.id,'IVX-'+payload.id+'-SECRET');}
+  server.downloadCodes=rowCopies();if(failCreation){failCreation=false;throw Error('Conexão perdida');}
+  return {code:secretById.get(payload.id),entry:{...row},downloadCodes:rowCopies()};
+ };
+ backend.revokeDownloadCode=async id=>{if(revokeMode==='error')throw Error('offline');if(revokeMode==='ok'){const row=rows.find(item=>item.id===id);row.status='revoked';row.revokedAt='2026-11-17T21:00:00Z';}return{downloadCodes:rowCopies()}};
+ const walk=node=>[node,...(node.childNodes||[]).flatMap(walk)];
+ const revokeButton=id=>walk(ids['download-code-list']).find(node=>node.dataset?.revokeCode===id);
+ assert.equal(ids['download-code-max'].value,'1');assert.equal(ids['download-code-validity'].value,'');
+ ids['download-code-label'].value='<img src=x> Testador';ids['download-code-label'].emit('input');
+ failCreation=true;await submit(codeForm);assert.equal(codeCalls.length,1);assert.equal(codeCalls[0].maxUses,1);assert.equal(codeCalls[0].validForHours,null);assert.equal(ids['download-code-secret'].value,'');assert.match(ids['download-code-status'].textContent,/perdida/);
+ dispatch('invox:admin-state',server);assert.equal(ids['download-code-secret'].value,'','realtime never restores a full code from metadata');await submit(codeForm);
+ assert.equal(codeCalls.length,2);assert.equal(codeCalls[0].id,codeCalls[1].id,'retry keeps the same creation UUID');assert.equal(rows.length,1);
+ const firstId=codeCalls[1].id,firstSecret=secretById.get(firstId);assert.equal(ids['download-code-secret'].value,firstSecret);assert.equal(ids['download-code-result'].hidden,false);assert(!JSON.stringify(snapshot()).includes(firstSecret),'public UI state does not expose the one-time secret');assert(treeText(ids['download-code-list']).includes('<img src=x> Testador'),'labels are literal text');
+ await ids['download-code-copy'].emit('click').completion;assert.equal(copied.at(-1),firstSecret);assert.match(ids['download-code-status'].textContent,/copiado/);
+ window.navigator.clipboard.writeText=async()=>{throw Error('permission denied')};Element.prototype.focus=function(){document.activeElement=this};Element.prototype.select=function(){this.selectionStart=0;this.selectionEnd=this.value.length};
+ await ids['download-code-copy'].emit('click').completion;assert.match(ids['download-code-status'].textContent,/manualmente/);assert.equal(ids['download-code-secret'].value,firstSecret);
+ ids['download-code-hide'].emit('click');assert.equal(ids['download-code-secret'].value,'');assert.equal(ids['download-code-result'].hidden,true);
+ ids['download-code-max'].value='1001';ids['download-code-max'].emit('input');await submit(codeForm);assert.equal(codeCalls.length,2,'out-of-range max does not request a code');
+ ids['download-code-max'].value='5';ids['download-code-max'].emit('input');ids['download-code-validity'].value='168';ids['download-code-validity'].emit('change');
+ failCreation=true;await submit(codeForm);const oldAttempt=codeCalls.at(-1).id;ids['download-code-max'].value='6';ids['download-code-max'].emit('input');await submit(codeForm);assert.notEqual(codeCalls.at(-1).id,oldAttempt,'changed parameters start a new creation intent');assert.equal(codeCalls.at(-1).maxUses,6);assert.equal(codeCalls.at(-1).validForHours,168);
+ const lastId=codeCalls.at(-1).id;assert.equal(ids['download-code-secret'].value,secretById.get(lastId));revokeMode='unconfirmed';await revokeButton(lastId).emit('click').completion;assert.match(ids['download-code-status'].textContent,/não confirmou/);assert.equal(snapshot().downloadCodes.find(row=>row.id===lastId).status,'active','unconfirmed response cannot show a revoked code');
+ revokeMode='error';await revokeButton(lastId).emit('click').completion;assert.equal(snapshot().downloadCodes.find(row=>row.id===lastId).status,'active');
+ revokeMode='ok';await revokeButton(lastId).emit('click').completion;assert.equal(snapshot().downloadCodes.find(row=>row.id===lastId).status,'revoked');assert.equal(ids['download-code-secret'].value,'');assert.equal(revokeButton(lastId),undefined);
+ const stale=rowCopies().map(row=>row.id===lastId?{...row,status:'active',revokedAt:null}:row);dispatch('invox:admin-state',{...server,downloadCodes:stale});assert.equal(snapshot().downloadCodes.find(row=>row.id===lastId).status,'revoked','stale realtime cannot reactivate a known revocation');
+ ids['download-code-label'].value='Rascunho em edição';ids['download-code-label'].emit('input');ids['download-code-max'].value='9';ids['download-code-max'].emit('input');dispatch('invox:admin-state',{...server,downloadCodes:rowCopies()});assert.equal(ids['download-code-label'].value,'Rascunho em edição');assert.equal(ids['download-code-max'].value,'9');
+ let finishCode;backend.createDownloadCode=payload=>new Promise(resolve=>{finishCode=()=>resolve({code:'LATE-SECRET',entry:{id:payload.id,label:payload.label,maxUses:payload.maxUses,usedCount:0,remainingUses:payload.maxUses,status:'active',createdAt:'2026-11-17T20:00:00Z',expiresAt:null,revokedAt:null},downloadCodes:[]})});
+ const late=codeForm.emit('submit');assert.equal(snapshot().codeBusy,true);dispatch('invox:admin-clear');finishCode();await late.completion;assert.equal(ids['download-code-secret'].value,'');assert.equal(ids['download-code-result'].hidden,true);assert.equal(snapshot().downloadCodes.length,0);assert.equal(ids['download-code-max'].value,'1');assert.equal(ids['download-code-create'].disabled,true,'logout clears secrets and ignores late creation responses');
+}
 (async()=>{
  assert.equal(snapshot().settings.uploadLimitBytes,1610612736,'fallback permits 1.5GB before server settings arrive');
- dispatch('invox:admin-state',server);assert.equal(version.value,'1.1.0');assert.equal(notes.value,'Atualização real');assert.equal(password.required,false);assert.equal(ids['access-preview-status'].textContent,'Downloads com senha');
+ dispatch('invox:admin-state',server);assert.equal(version.value,'1.1.0');assert.equal(notes.value,'Atualização real');assert.equal(password.required,false);assert.equal(ids['access-preview-status'].textContent,'Chave e códigos de acesso');
  assert.equal(snapshot().settings.uploadLimitBytes,1024,'the server limit overrides the fallback');assert.match(ids['upload-limit'].textContent,/1 KB/);
  await submit(accessForm);assert.equal(calls.access.length,1);assert.equal(calls.access[0].password,'');
- chooseVisibility('public');dispatch('invox:admin-state',server);assert.equal(radios[0].checked,true);assert.equal(ids['access-preview-status'].textContent,'Downloads com senha');
+ chooseVisibility('public');dispatch('invox:admin-state',server);assert.equal(radios[0].checked,true);assert.equal(ids['access-preview-status'].textContent,'Chave e códigos de acesso');
  failAccess=true;await submit(accessForm);assert.equal(snapshot().settings.visibility,'private');assert.equal(toasts.at(-1)[1],'error');
  failAccess=false;await submit(accessForm);assert.equal(snapshot().settings.visibility,'public');assert.equal(ids['access-preview-status'].textContent,'Downloads liberados');
  chooseVisibility('private');password.value='short';await submit(accessForm);assert.equal(snapshot().settings.visibility,'public');
@@ -165,5 +215,6 @@ async function independentVersions(){
  windows.input.files=[fixture('first.exe')];windows.input.emit('change');version.value='1.2.0';const first=releaseForm.emit('submit');assert.equal(pending.length,1);assert.equal(pending[0].payload.objectUploadLimitBytes,50*1024*1024);assert.equal(pending[0].payload.signal.aborted,false);dispatch('invox:admin-clear');assert.equal(pending[0].payload.signal.aborted,true,'logout aborts the active transport');
  dispatch('invox:admin-state',server);windows.input.files=[fixture('second.exe')];windows.input.emit('change');version.value='1.2.1';const second=releaseForm.emit('submit');assert.equal(pending.length,2);assert.equal(version.disabled,true);const currentStatus=ids['upload-status'].textContent;pending[0].payload.onStatus('stale update');assert.equal(ids['upload-status'].textContent,currentStatus);pending[0].resolve({platform:'windows',fileName:'first.exe',size:512,path:'fixture/first.exe'});await first.completion;assert.equal(version.disabled,true,'old finally cannot unlock a new session upload');
  pending[1].payload.onStatus('Verificando partes');assert.match(ids['upload-status'].textContent,/Windows: Verificando partes/);pending[1].resolve({kind:'multipart',uploadId:'fixture-id',platform:'windows',fileName:'second.exe',size:512,sha256:'fixture'});await second.completion;assert.equal(version.disabled,false);assert.equal(calls.releases.at(-1).files[0].kind,'multipart');dispatch('invox:admin-clear');
- console.log('PASS connected settings: independent platform versions, metadata-only updates, retry without reupload, realtime drafts, bounded history with Brasilia seconds, safe text, quota/progress, auth boundaries and logout.');
+ await accessCodeControls();
+ console.log('PASS connected settings: independent versions/history, universal toggle/key rotation, bounded download codes, one-time secret display, idempotent retry, revoke/copy confirmation, realtime drafts and logout.');
 })().catch(error=>{console.error(error);process.exitCode=1});

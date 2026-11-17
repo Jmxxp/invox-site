@@ -26,7 +26,12 @@ As migrações `20261117193242_invox_game_feedback.sql` e `20261117194103_invox_
 
 ## Acesso aos downloads
 
-No modo público, visitantes baixam sem senha. No privado, a senha é validada no servidor antes de gerar o link temporário. Senhas novas exigem pelo menos oito caracteres. O painel não recebe nem exibe o hash salvo; deixar o campo em branco mantém a senha já configurada.
+No modo público, visitantes baixam sem senha. No privado, há duas formas de liberar downloads na área **Acesso ao site**:
+
+- **Chave universal:** pode ser ativada, desativada ou trocada. Uma chave nova exige pelo menos oito caracteres; deixar o campo em branco mantém a atual. A troca ou desativação invalida as autorizações universais anteriores.
+- **Códigos de download:** use **Gerar código**, copie o código completo e compartilhe com a pessoa autorizada. O padrão é **1 download**; é possível definir de 1 a 1000, com validade opcional. A lista mostra usos restantes, data, validade e revogação. O código completo só aparece na resposta à criação e não pode ser consultado depois na lista.
+
+Cada uso corresponde à autorização de um download de uma plataforma. Partes de um mesmo instalador e retentativas da mesma transferência não gastam novos usos; uma autorização já emitida pode ser retomada por até oito horas. Revogar um código impede novas autorizações, preservando a transferência já liberada. Códigos não criam a sessão persistente da chave universal. Também é possível manter o site privado com a chave universal desativada e liberar somente por códigos.
 
 ## Versão e instaladores
 

@@ -16,6 +16,14 @@ Todas as tabelas possuem RLS e negam acesso direto a `anon` e `authenticated`. A
 
 ## Instaladores e liberação
 
+A migração `20261117210300_invox_download_access_codes.sql` separa a chave universal dos códigos de download. `download_universal_enabled` permite desativar a chave e manter o modo privado usando somente códigos. Alterações da chave invalidam sessões universais antigas; a geração de modo é independente, preservando transferências por código durante uma troca de chave.
+
+`create-download-code` e `revoke-download-code` exigem administrador. A criação recebe UUID idempotente, identificação opcional, `maxUses` de 1 a 1000 (padrão 1) e validade opcional em horas. A chave HMAC `INVOX_ACCESS_CODE_SECRET` fica nos segredos da Edge Function e deve ser preservada; códigos completos não são armazenados no banco nem enviados pelo Realtime. `admin-state` retorna somente metadados de até cem códigos recentes.
+
+Em modo privado, `download` aceita `{platform,code,requestId}`. O UUID deve permanecer igual ao repetir uma tentativa cujo resultado é desconhecido; iniciar um download novo exige outro UUID. O servidor valida e assina antes de confirmar o resgate em uma transação com bloqueios: uma autorização lógica gasta um uso, mesmo em instaladores multipart. Um resultado perdido pode ser recuperado pela mesma tentativa por até oito horas. Revogação, expiração e esgotamento bloqueiam novas tentativas. Códigos não emitem `accessSession`; somente a chave universal mantém a sessão de trinta dias. Em modo público, nenhum uso de código é descontado.
+
+As tabelas de códigos e autorizações têm RLS e não permitem leitura ou resgate direto por visitantes autenticados ou anônimos. `tests/download-access-codes.sql` verifica contagem, retomada, troca de chave, isolamento de gerações, partes e permissões usando rollback, sem alterar instaladores ou contadores reais.
+
 O painel aceita instaladores de até **1,5 GiB (1.610.612.736 bytes)**. Arquivos grandes são divididos em **partes de 20 MiB**, cada uma armazenada como objeto privado separado. O limite global de 50 MiB por objeto permanece. Os formatos continuam EXE/MSI/ZIP, DMG/PKG/ZIP e APK.
 
 O novo bucket privado `invox-installer-parts` tem limite de 20 MiB e MIME `application/octet-stream` e deve ser criado pela Storage API. O bucket legado `invox-installers` continua privado, com 50 MiB. A proposta antiga em `proposals/` não é necessária para o fluxo multipart.

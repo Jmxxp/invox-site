@@ -90,15 +90,17 @@
     trackView: eventId => request('track-view', { eventId }),
     analytics: (period = 'week') => request('analytics', { period }, { admin: true }),
     resetAnalytics: () => request('reset-analytics', {}, { admin: true }),
-    async download(platform, password = '') {
-      const saved = downloadSession();
+    async download(platform, password = '', options = {}) {
+      const byCode = Object.prototype.hasOwnProperty.call(options, 'code');
+      const saved = byCode ? null : downloadSession();
       const epoch = downloadSessionEpoch;
       try {
-        const result = await request('download', { platform, password, ...(saved ? { accessToken: saved.token } : {}) });
-        if (result.accessSession && epoch === downloadSessionEpoch) storeDownloadSession(result.accessSession);
+        const credentials = byCode ? { code: options.code, requestId: options.requestId } : { password, ...(saved ? { accessToken: saved.token } : {}) };
+        const result = await request('download', { platform, ...credentials });
+        if (!byCode && result.accessSession && epoch === downloadSessionEpoch) storeDownloadSession(result.accessSession);
         return result;
       } catch (error) {
-        if (epoch === downloadSessionEpoch && (error.code === 'password_required' || error.code === 'invalid_password')) storeDownloadSession(null);
+        if (!byCode && epoch === downloadSessionEpoch && ['password_required', 'invalid_password', 'universal_disabled'].includes(error.code)) storeDownloadSession(null);
         throw error;
       }
     },
@@ -113,6 +115,8 @@
     sendFeedback: data => request('feedback', data),
     adminState: () => request('admin-state', {}, { admin: true }),
     saveAccess: data => request('save-access', data, { admin: true }),
+    createDownloadCode: data => request('create-download-code', data, { admin: true }),
+    revokeDownloadCode: id => request('revoke-download-code', { id }, { admin: true }),
     saveRelease: data => request('save-release', data, { admin: true }),
     updateInstallerVersion: (platform, version) => request('update-installer-version', { platform, version }, { admin: true }),
     updateFeedback: data => request('update-feedback', data, { admin: true }),

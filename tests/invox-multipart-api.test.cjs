@@ -9,7 +9,7 @@ const payload=Buffer.from('A real immutable installer part.');
 const manifest=(size=payload.length)=>({platform:'windows',version:'1.1.0',fileName:'INVOX.exe',size,sha256:size===payload.length?digest(payload):'a'.repeat(64),parts:Array.from({length:Math.ceil(size/PART)},(_,index)=>({index,size:Math.min(PART,size-index*PART),sha256:size===payload.length?digest(payload):'b'.repeat(64)}))});
 function harness(options={}){
  const sessions=new Map(),objects=new Map(),tickets=new Map(),privateSessions=new Map(),logs={rpc:[],sign:[],upload:[],reads:[],remove:[]};
- const settings={id:true,visibility:'public',download_password_hash:null,download_access_generation:1,version:'1.1.0',release_notes:'',updated_at:'2026-11-17T00:00:00Z'};
+ const settings={id:true,visibility:'public',download_universal_enabled:true,download_password_hash:null,download_access_generation:1,download_mode_generation:1,version:'1.1.0',release_notes:'',updated_at:'2026-11-17T00:00:00Z'};
  const controls={user:ADMIN,allowed:true,quota:false,signError:false,countError:false,changeDuringVerify:false,tamperPath:false,now:Date.parse('2026-11-17T12:00:00Z')};
  let installers=[{platform:'windows',path:'legacy.exe',file_name:'legacy.exe',size:7,version:'1.0.0'}],downloads=0;
  const user=()=>controls.user?{id:controls.user,email:controls.user===ADMIN?'admin@example.test':'other@example.test',email_confirmed_at:'now'}:null;
@@ -31,6 +31,7 @@ function harness(options={}){
   if(name==='invox_take_rate_limit')return {data:true,error:null};
   if(name==='invox_multipart_cleanup_due')return {data:[],error:null};
   if(name==='invox_installer_history_list')return {data:[],error:null};
+  if(name==='invox_download_codes_list')return {data:[],error:null};
   if(name==='invox_storage_status')return {data:{capacityBytes:args.p_budget_bytes,usedBytes:0,reservedBytes:0,availableBytes:args.p_budget_bytes,cleanupPendingBytes:0},error:null};
   if(name==='invox_create_multipart_upload'){
    if(controls.quota||Math.ceil(args.p_size/PART)*PART>args.p_budget_bytes)return error('invox_storage_quota_exceeded');
@@ -47,7 +48,7 @@ function harness(options={}){
   if(name==='invox_mint_multipart_download'){const u=sessions.get(args.p_upload_id);if(!u||!(args.p_preview?u.owner===args.p_admin_id&&u.status==='ready':u.status==='published'))return error('Unavailable','42501');if(args.p_access_generation!==settings.download_access_generation)return error('invox_download_ticket_expired');const expires=controls.now+8*3600000;tickets.set(args.p_token_hash,{uploadId:u.id,generation:settings.download_access_generation,expires,preview:args.p_preview,counted:false});return {data:{kind:'multipart',fileName:u.fileName,size:u.size,sha256:u.sha256,expiresAt:new Date(expires).toISOString(),parts:u.parts.map(({index,size,sha256})=>({index,size,sha256}))},error:null};}
   if(name==='invox_download_multipart_part'){const pair=activeTicket(args);if(!pair)return error('invox_download_ticket_expired');const [t,u]=pair,p=u.parts[args.p_index];return p?{data:{uploadId:u.id,path:p.path,index:p.index,size:p.size,sha256:p.sha256},error:null}:error('Missing','P0002');}
   if(name==='invox_count_multipart_download'){if(controls.countError)return error('SECRET counter failure');const pair=activeTicket(args);if(!pair)return error('invox_download_ticket_expired');const [t]=pair;if(!t.counted&&!t.preview)downloads++;t.counted=true;return {data:true,error:null};}
-  if(name==='invox_create_download_session'){privateSessions.set(args.p_token_hash,{token_hash:args.p_token_hash,password_fingerprint:args.p_password_fingerprint,expires_at:'2026-12-17T00:00:00Z'});return {data:'2026-12-17T00:00:00Z',error:null};}
+  if(name==='invox_issue_universal_session'){privateSessions.set(args.p_token_hash,{token_hash:args.p_token_hash,password_fingerprint:args.p_password_fingerprint,access_generation:args.p_access_generation,expires_at:'2026-12-17T00:00:00Z'});return {data:'2026-12-17T00:00:00Z',error:null};}
   if(name==='invox_cancel_multipart_upload'){const u=owned(args);if(!u||u.status==='published')return error('Forbidden','42501');u.status='cancelled';return {data:{paths:u.parts.map(p=>p.path),cleanupAfter:'2026-11-18T13:00:00Z'},error:null};}
   if(name==='invox_finish_multipart_cleanup')return {data:{cancelled:true,cleanupPending:true,cleanupAfter:'2026-11-18T13:00:00Z'},error:null};
   throw Error('Unexpected RPC '+name);

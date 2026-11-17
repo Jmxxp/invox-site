@@ -14,15 +14,17 @@
   <link rel="stylesheet" href="assets/vendor/fontawesome/css/brands.min.css">
   <link rel="stylesheet" href="styles.css?v=20261118-unified-services">
   <link rel="stylesheet" href="analytics.css?v=20261117-panel-refresh">
+  <link rel="stylesheet" href="announcements.css?v=20261117-lobby-preview">
+  <link rel="stylesheet" href="access.css?v=20261117-access-codes">
   <script defer src="../site-oficial/shared/vendor/supabase.js"></script>
   <script defer src="../site-oficial/shared/vendor/tus.min.js"></script>
   <script defer src="../site-oficial/shared/vendor/sha256.umd.min.js"></script>
-  <script defer src="../site-oficial/shared/invox-client.js?v=20261118-unified-services"></script>
+  <script defer src="../site-oficial/shared/invox-client.js?v=20261117-access-codes"></script>
   <script defer src="admin.js?v=20261118-unified-services"></script>
   <script defer src="analytics.js?v=20261117-realtime"></script>
   <script defer src="feedback.js?v=20261118-unified-services"></script>
-  <script defer src="announcements.js?v=20261118-unified-services"></script>
-  <script defer src="settings.js?v=20261117-platform-history"></script>
+  <script defer src="announcements.js?v=20261117-lobby-preview"></script>
+  <script defer src="settings.js?v=20261117-access-codes"></script>
 </head>
 <body>
   <a class="skip-link" href="#main-content">Ir para o conteúdo</a>
@@ -99,27 +101,38 @@
 
         <section id="panel-announcements" class="admin-panel" aria-labelledby="announcements-heading" hidden>
           <div class="panel-heading"><div><h2 id="announcements-heading">Fale com quem está jogando.</h2><p>Recados ativos aparecem dentro do jogo quando ele consulta as novidades.</p></div><span class="panel-caption">Todos os jogadores · até 20 recados ativos na consulta</span></div>
+          <div class="announcement-compose">
           <form id="announcement-form" class="settings-card announcement-form" aria-busy="false">
             <div class="field-group"><label for="announcement-title">Título do recado</label><input id="announcement-title" name="title" type="text" required maxlength="200" placeholder="Ex.: Novidades no INVOX"></div>
             <div class="field-group"><label for="announcement-message">Mensagem para os jogadores</label><textarea id="announcement-message" name="message" rows="5" required maxlength="4000" placeholder="Escreva o aviso que aparecerá no jogo..."></textarea><p class="field-hint">Até 2000 caracteres. O jogador pode fechar o recado em OK ou X.</p></div>
             <div class="settings-actions"><button type="submit" id="announcement-publish" class="button button-primary"><i class="fa-solid fa-bullhorn" aria-hidden="true"></i>Publicar para todos</button></div>
             <p id="announcement-status" class="field-hint" role="status" aria-live="polite"></p>
           </form>
+          <aside class="announcement-preview" aria-labelledby="announcement-preview-heading">
+            <div class="announcement-preview-top"><span><i class="fa-solid fa-bullhorn" aria-hidden="true"></i> INVOX</span><span aria-hidden="true">×</span></div>
+            <p id="announcement-preview-heading" class="eyebrow">PRÉVIA NO LOBBY</p>
+            <h3 id="announcement-preview-title">Seu próximo aviso começa aqui.</h3>
+            <p id="announcement-preview-message" class="announcement-preview-message">Escreva a mensagem ao lado para conferir a prévia.</p>
+            <div class="announcement-preview-actions" aria-hidden="true"><span>OK, ENTENDI</span></div>
+            <p class="announcement-preview-note">Exemplo de apresentação. A exibição no lobby depende da conexão do jogo.</p>
+          </aside>
+          </div>
           <div class="announcement-list" id="announcement-list" aria-label="Recados publicados"></div>
         </section>
         <section id="panel-access" class="admin-panel" aria-labelledby="access-heading" hidden>
   <div class="panel-heading"><h2 id="access-heading">Acesso ao site</h2><p>Controle a liberação dos downloads do site oficial.</p></div>
   <form id="access-form" class="settings-layout">
     <div class="settings-card">
-      <div class="settings-card-heading"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i><div><h3>Visibilidade</h3><p>Escolha se o download será livre ou exigirá senha.</p></div></div>
+      <div class="settings-card-heading"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i><div><h3>Liberação dos downloads</h3><p>Escolha entre acesso livre ou protegido por chave e códigos.</p></div></div>
       <div class="visibility-options">
         <label class="visibility-option is-selected"><input type="radio" name="site-visibility" value="public" checked><i class="fa-solid fa-globe" aria-hidden="true"></i><strong>Público</strong><small>Download livre para todos</small></label>
-        <label class="visibility-option"><input type="radio" name="site-visibility" value="private"><i class="fa-solid fa-lock" aria-hidden="true"></i><strong>Privado</strong><small>Download com senha</small></label>
+        <label class="visibility-option"><input type="radio" name="site-visibility" value="private"><i class="fa-solid fa-lock" aria-hidden="true"></i><strong>Privado</strong><small>Chave ou código de acesso</small></label>
       </div>
+      <div id="universal-key-settings" class="universal-key-settings" hidden><label class="universal-key-control" for="universal-enabled"><span><strong>Chave universal</strong><small>Uma chave compartilhada para liberar os downloads privados.</small></span><input id="universal-enabled" type="checkbox" checked aria-describedby="universal-enabled-help"><span class="universal-key-switch" aria-hidden="true"></span></label><p id="universal-enabled-help" class="field-hint">Desative para aceitar somente códigos com limite de downloads.</p></div>
       <div id="private-password-fields" class="field-group" hidden>
-        <label for="site-password">Senha de acesso</label>
+        <label for="site-password">Definir ou trocar chave universal</label>
         <div class="input-with-action"><input id="site-password" type="password" minlength="8" maxlength="128" autocomplete="new-password" placeholder="Pelo menos 8 caracteres" aria-describedby="password-hint"><button id="toggle-password" type="button" aria-label="Mostrar senha" aria-pressed="false"><i class="fa-solid fa-eye" aria-hidden="true"></i></button></div>
-        <p id="password-hint" class="field-hint">A senha é protegida no servidor. Deixe em branco para manter a senha já configurada.</p>
+        <p id="password-hint" class="field-hint">Deixe em branco para manter a chave. Trocar ou desativar invalida suas liberações para os próximos downloads.</p>
       </div>
       <div class="settings-actions"><button class="button button-primary" type="submit"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i>Salvar acesso</button><span class="session-note">Aplicado após salvar</span></div>
     </div>
@@ -128,9 +141,22 @@
       <span class="draft-label">CONFIGURAÇÃO PUBLICADA</span>
       <h3 id="access-preview-status" class="preview-status">Carregando acesso…</h3>
       <p id="access-preview-description">Conferindo a configuração salva no servidor.</p>
-      <p class="field-hint">Links de download são temporários. A senha não é exibida pelo painel.</p>
+      <p class="field-hint">Links de download são temporários. A chave salva não é exibida pelo painel.</p>
     </aside>
   </form>
+  <section class="settings-card access-codes" aria-labelledby="download-codes-heading">
+    <div class="settings-card-heading"><i class="fa-solid fa-ticket" aria-hidden="true"></i><div><h3 id="download-codes-heading">Códigos com limite de downloads</h3><p>Gere acessos individuais. Cada código começa com apenas 1 download, e você pode ajustar esse limite.</p></div></div>
+    <form id="download-code-form" class="download-code-form" aria-busy="false">
+      <div class="field-group code-label-field"><label for="download-code-label">Identificação <span class="field-hint">(opcional)</span></label><input id="download-code-label" type="text" maxlength="80" placeholder="Ex.: Testador da comunidade" autocomplete="off"></div>
+      <div class="field-group"><label for="download-code-max">Número de downloads</label><input id="download-code-max" type="number" min="1" max="1000" step="1" value="1" required inputmode="numeric"></div>
+      <div class="field-group"><label for="download-code-validity">Validade</label><select id="download-code-validity"><option value="">Sem data de expiração</option><option value="24">24 horas</option><option value="168">7 dias</option><option value="720">30 dias</option></select></div>
+      <button id="download-code-create" class="button button-primary" type="submit"><i class="fa-solid fa-plus" aria-hidden="true"></i><span id="download-code-create-label">Gerar código</span></button>
+    </form>
+    <p class="field-hint access-code-help">Cada uso é contado ao liberar um download; retentativas da mesma transferência não gastam outro uso. O limite vale para o código inteiro, em qualquer plataforma, quando o site está privado.</p>
+    <div id="download-code-result" class="download-code-result" hidden><div><strong>Código gerado</strong><p id="download-code-result-label"></p><p>Copie agora. O código completo não será mostrado novamente.</p></div><label class="sr-only" for="download-code-secret">Código de acesso gerado</label><input id="download-code-secret" type="text" readonly autocomplete="off" spellcheck="false"><div class="download-code-secret-actions"><button id="download-code-copy" class="button button-ghost button-small" type="button"><i class="fa-solid fa-copy" aria-hidden="true"></i>Copiar código</button><button id="download-code-hide" class="button button-ghost button-small" type="button">Ocultar código</button></div></div>
+    <p id="download-code-status" class="download-code-status" role="status" aria-live="polite"></p>
+    <div class="download-code-list-heading"><h4>Códigos mais recentes</h4><span id="download-code-count" class="field-hint">0 códigos</span></div><p id="download-code-empty" class="download-code-empty">Entre no painel para consultar os códigos.</p><div id="download-code-list" class="download-code-list" role="list" aria-label="Códigos de download"></div>
+  </section>
 </section>
 <section id="panel-downloads" class="admin-panel" aria-labelledby="downloads-heading" hidden>
   <div class="panel-heading"><h2 id="downloads-heading">Versão e instaladores</h2><p>Organize a próxima versão do INVOX e seus arquivos por plataforma.</p></div>

@@ -69,7 +69,7 @@
   <link rel="stylesheet" href="lobby.css">
   <link rel="stylesheet" href="premium.css?v=20261117-centered">
   <link rel="stylesheet" href="feedback.css?v=20261117-game-feedback">
-  <link rel="stylesheet" href="integration.css?v=20261117-password-corners">
+  <link rel="stylesheet" href="integration.css?v=20261117-access-codes">
   <link rel="stylesheet" href="downloads.css?v=20261117-spacing">
   <link rel="stylesheet" href="navigation.css?v=20261117-corners">
   <link rel="stylesheet" href="modes.css?v=20261117-mode-borders">
@@ -77,10 +77,10 @@
   <script src="config.js" defer></script>
   <script src="shared/vendor/supabase.js" defer></script>
   <script src="shared/vendor/sha256.umd.min.js" defer></script>
-  <script src="shared/invox-client.js?v=20261118-unified-services" defer></script>
+  <script src="shared/invox-client.js?v=20261117-access-codes" defer></script>
   <script src="analytics.js" defer></script>
   <script src="download-multipart.js?v=20261117-multipart" defer></script>
-  <script src="script.js?v=20261118-unified-services" defer></script>
+  <script src="script.js?v=20261117-access-codes" defer></script>
   <script src="lobby.js?v=20261117-original-fixed-camera" defer></script>
   <script src="effects.js" defer></script>
   <script src="modes.js?v=20261117-original-modes" defer></script>
@@ -246,12 +246,18 @@
     <button class="dialog-close" type="button" data-close-dialog aria-label="Fechar"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
     <span class="dialog-eyebrow">ACESSO AO INVOX</span>
     <h2 id="download-password-title">Seu próximo mundo espera.</h2>
-    <p id="download-password-description">Este download está reservado. Informe a senha de acesso para baixar o INVOX.</p>
+    <p id="download-password-description">Este download está reservado. Use a chave universal ou um código de download.</p>
     <form id="download-password-form">
-      <label for="download-password">Senha de acesso</label>
-      <input id="download-password" name="password" type="password" autocomplete="off" required maxlength="128" aria-describedby="download-password-status" autofocus>
+      <div id="download-access-choices" class="download-access-choices" role="group" aria-label="Forma de acesso">
+        <button id="download-access-universal" type="button" aria-pressed="true"><i class="fa-solid fa-key" aria-hidden="true"></i>Chave universal</button>
+        <button id="download-access-code" type="button" aria-pressed="false"><i class="fa-solid fa-ticket" aria-hidden="true"></i>Código de download</button>
+      </div>
+      <label id="download-access-label" for="download-password">Chave universal</label>
+      <input id="download-password" name="password" type="password" autocomplete="off" autocorrect="off" spellcheck="false" required maxlength="128" aria-describedby="download-access-hint download-password-status" autofocus>
+      <p id="download-access-hint" class="download-access-hint">Use a chave de acesso fornecida pela equipe do INVOX.</p>
       <p id="download-password-status" class="download-password-status" role="status" aria-live="polite"></p>
       <button class="dialog-action" id="download-password-submit" type="submit">LIBERAR DOWNLOAD <i class="fa-solid fa-arrow-down" aria-hidden="true"></i></button>
+      <button id="download-code-cancel" class="download-access-cancel" type="button" hidden>Cancelar tentativa</button>
     </form>
   </dialog>
   <noscript><p class="noscript-note">Ative o JavaScript para acessar os downloads e as informações do INVOX.</p></noscript>

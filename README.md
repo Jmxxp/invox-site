@@ -6,6 +6,8 @@ Site oficial em `site-oficial/`, painel em `painel-admin/` e backend em `supabas
 
 Requer Node.js 22.13 ou superior. O build oficial usa somente módulos nativos, sem instalar dependências.
 
+A liberação privada permite chave universal e códigos com limite de downloads (um uso por padrão). A integração foi validada no Supabase com duas solicitações simultâneas para um código de uso único: uma autorização e uma recusa por esgotamento. Retomada, limite de dois usos, revogação e plataforma indisponível também passaram. Os três códigos temporários foram removidos; instaladores e configuração de acesso foram preservados. Os 26 testes locais e a verificação do artefato de 85 arquivos passaram. O painel de recados também inclui prévia da mensagem do lobby; a exibição dentro do jogo depende da integração do cliente.
+
 ```sh
 node scripts/test-official.mjs
 node scripts/build-official.mjs
@@ -34,7 +36,7 @@ Feedbacks, acesso e instaladores passam pela função `invox-api`, já publicada
 
 O Realtime atualiza feedbacks, gráficos, acesso e versões no painel e a disponibilidade dos instaladores no site. Eventos apenas invalidam a tela; os dados continuam vindo da API. O canal administrativo é privado e exige a allowlist. Reconexão recupera alterações, sem apagar rascunhos ou interromper downloads.
 
-Os instaladores ficam em bucket privado. Mesmo em modo público, o servidor gera URLs de download válidas por 60 segundos. Em modo privado, verifica a senha antes de gerar a URL. Uma URL já emitida continua válida até expirar.
+Os instaladores ficam em bucket privado. Mesmo em modo público, o servidor gera URLs de download válidas por 60 segundos. Em modo privado, o visitante usa a chave universal ou um código com limite de downloads. A chave pode ser trocada ou desativada no painel; códigos têm um uso por padrão, quantidade configurável, validade opcional e revogação. Retentativas da mesma transferência e partes do instalador não gastam outro uso. Uma URL já emitida continua válida até expirar.
 
 A versão inicial é 1.1.0. Publique os arquivos reais pelo painel; nenhum instalador de exemplo é criado. Instaladores, versões e acesso são gerenciados pelo painel administrativo.
 

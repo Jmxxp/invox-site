@@ -7,7 +7,7 @@ const sessionFixture={access_token:'access-token-fixture',refresh_token:'refresh
 const checks=[];
 function storage(initial={}){
  const values=new Map(Object.entries(initial));
- return {getItem:key=>values.get(key)??null,setItem:(key,value)=>values.set(key,String(value)),removeItem:key=>values.delete(key)};
+ return {getItem:key=>values.get(key)??null,setItem:(key,value)=>values.set(key,String(value)),removeItem:key=>values.delete(key),entries:()=>[...values.entries()]};
 }
 function harness(options={}){
  const state={session:null,fetchCalls:[],sdkCalls:[],xhrCalls:[],setSessions:[],responses:[],progress:[],xhrMode:'ok',setSessionError:null};
@@ -240,6 +240,27 @@ const ticket=(path='windows/1.1.0/upload-id/INVOX.exe')=>({path,token:'signed-up
   assert.deepEqual(h.state.fetchCalls[0].body,{action:'update-installer-version',platform:'macos',version:'1.2.3'});
   assert.equal(h.state.fetchCalls[0].options.headers.Authorization,'Bearer access-token-fixture');
   checks.push('Per-platform version edits use the authenticated endpoint without uploading file bytes');
+ }
+ {
+  const h=harness(); const saved={token:'a'.repeat(64),expiresAt:new Date(Date.now()+86400000).toISOString()};
+  h.state.responses.push(ok({url:'fixture',accessSession:saved}));await h.api.download('windows','universal-fixture');
+  const requestId='88888888-8888-4888-8888-888888888888',code='INVOX-'+('b'.repeat(64));
+  h.state.responses.push(ok({url:'fixture',accessSession:{token:'c'.repeat(64),expiresAt:saved.expiresAt}}));
+  await h.api.download('windows','',{code,requestId});
+  assert.deepEqual(h.state.fetchCalls.at(-1).body,{action:'download',platform:'windows',code,requestId});
+  assert(!JSON.stringify(h.localStorage.entries()).includes(code));
+  assert(!JSON.stringify(h.sessionStorage.entries()).includes(code));
+  assert.equal(JSON.parse(h.localStorage.getItem('invox-download-access-wsfdwyghqqaerivyrbil-v1')).token,saved.token,'code response cannot replace the universal grant');
+  checks.push('Code redemption omits universal credentials and never persists a reusable grant');
+ }
+ {
+  const h=harness(),id='88888888-8888-4888-8888-888888888888';
+  await assert.rejects(()=>h.api.createDownloadCode({id,maxUses:1}),e=>e.code==='unauthorized');
+  await assert.rejects(()=>h.api.revokeDownloadCode(id),e=>e.code==='unauthorized');
+  h.state.session=sessionFixture;h.state.responses.push(ok({code:'fixture',downloadCodes:[]}),ok({downloadCodes:[]}));
+  await h.api.createDownloadCode({id,maxUses:1,label:'Teste',validForHours:null});await h.api.revokeDownloadCode(id);
+  assert.deepEqual(h.state.fetchCalls.map(x=>x.body),[{action:'create-download-code',id,maxUses:1,label:'Teste',validForHours:null},{action:'revoke-download-code',id}]);
+  checks.push('Download code creation and revocation require administrative authentication');
  }
  console.log(JSON.stringify({result:'PASS',checks},null,2));
 })().catch(error=>{console.error(error);process.exitCode=1;});

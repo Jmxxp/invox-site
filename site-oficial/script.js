@@ -73,10 +73,20 @@
   const passwordInput = document.getElementById('download-password');
   const passwordStatus = document.getElementById('download-password-status');
   const passwordSubmit = document.getElementById('download-password-submit');
+  const accessUniversal = document.getElementById('download-access-universal');
+  const accessCode = document.getElementById('download-access-code');
+  const accessLabel = document.getElementById('download-access-label');
+  const accessHint = document.getElementById('download-access-hint');
+  const cancelCodeAttempt = document.getElementById('download-code-cancel');
+  const accessChoices = document.getElementById('download-access-choices');
   let downloadBusy = false;
   let pendingDownload = null;
   let attempt = 0;
   let lastVisibility = null;
+  let universalEnabled = true;
+  let accessMethod = 'universal';
+  let codeAttempt = null;
+  let pendingAuthorizedDownload = null;
   let availabilityReady = false;
   let activeDownload = null;
   let pendingFileSave = null;
@@ -100,7 +110,7 @@
     catch { return false; }
   }
   function updateDownloadSession() {
-    if (lockDownload) lockDownload.hidden = lastVisibility !== 'private' || !hasDownloadSession();
+    if (lockDownload) lockDownload.hidden = lastVisibility !== 'private' || !universalEnabled || !hasDownloadSession();
   }
   function updateDownloadControls() {
     downloadLinks.forEach(link => {
@@ -125,12 +135,58 @@
     downloadLinks.forEach(link => { link.dataset.available = 'false'; link.title = `${platformNames[link.dataset.download]}: aguardando conexão com o INVOX`; });
     updateDownloadControls();
   }
+  function updateAccessMethod() {
+    if (!passwordInput) return;
+    if (!universalEnabled) accessMethod = 'code';
+    const isCode = accessMethod === 'code';
+    if (accessChoices) accessChoices.dataset.single = String(!universalEnabled);
+    if (accessUniversal) {
+      accessUniversal.hidden = !universalEnabled;
+      accessUniversal.disabled = downloadBusy || Boolean(codeAttempt);
+      accessUniversal.setAttribute('aria-pressed', String(!isCode));
+    }
+    if (accessCode) {
+      accessCode.disabled = downloadBusy || Boolean(codeAttempt);
+      accessCode.setAttribute('aria-pressed', String(isCode));
+    }
+    if (accessLabel) accessLabel.textContent = isCode ? 'Código de download' : 'Chave universal';
+    if (accessHint) accessHint.textContent = codeAttempt
+      ? 'Mantenha esta página aberta para recuperar a mesma tentativa. Cancelar descarta esta tentativa neste navegador.'
+      : isCode ? 'O código autoriza este download. Ele não libera acesso permanente neste navegador.' : 'Use a chave de acesso fornecida pela equipe do INVOX.';
+    passwordInput.type = isCode ? 'text' : 'password';
+    passwordInput.placeholder = codeAttempt ? 'Código mantido apenas para recuperar esta tentativa' : isCode ? 'Digite seu código' : 'Digite a chave universal';
+    passwordInput.disabled = downloadBusy || Boolean(codeAttempt);
+    passwordInput.required = !codeAttempt;
+    if (cancelCodeAttempt) cancelCodeAttempt.hidden = !codeAttempt || downloadBusy;
+    if (!downloadBusy && passwordSubmit) passwordSubmit.textContent = codeAttempt ? 'RECUPERAR DOWNLOAD' : 'LIBERAR DOWNLOAD';
+  }
+  function selectAccessMethod(method) {
+    if (downloadBusy || codeAttempt || (method === 'universal' && !universalEnabled)) return;
+    accessMethod = method;
+    passwordInput.value = '';
+    passwordStatus.textContent = '';
+    updateAccessMethod();
+    passwordInput.focus();
+  }
+  accessUniversal?.addEventListener('click', () => selectAccessMethod('universal'));
+  accessCode?.addEventListener('click', () => selectAccessMethod('code'));
+  cancelCodeAttempt?.addEventListener('click', () => passwordDialog?.close());
+  function uncertainCodeResponse(error) {
+    return error?.code === 'offline' || error?.code === 'rate_limited' || !error?.code || Number(error.status) >= 500;
+  }
   function errorCopy(error) {
     return ({
       offline: 'Não foi possível conectar ao INVOX. Tente novamente em instantes.',
       unavailable: 'Este instalador ainda não está disponível. Tente novamente mais tarde.',
       invalid_password: 'Senha incorreta. Confira a senha de acesso e tente novamente.',
       password_required: 'Informe a senha de acesso para continuar.',
+      invalid_code: 'Código inválido. Confira o código recebido e tente novamente.',
+      code_exhausted: 'Este código já atingiu o limite de downloads. Solicite outro código.',
+      code_revoked: 'Este código foi revogado. Solicite um código ativo.',
+      code_expired: 'Este código expirou. Solicite um novo código.',
+      universal_disabled: 'A chave universal está desativada. Use um código de download.',
+      download_expired: 'A autorização desta tentativa expirou. Inicie um novo download com um código válido.',
+      download_changed: 'O instalador mudou desde esta tentativa. Inicie um novo download para receber a versão atual.',
       rate_limited: 'Muitas tentativas. Aguarde alguns minutos antes de tentar novamente.',
       download_integrity: 'A verificação do instalador falhou. O arquivo não foi concluído. Tente novamente.',
       download_network: 'A conexão foi interrompida. O arquivo não foi concluído. Tente novamente.',
@@ -145,6 +201,7 @@
     downloadLinks.forEach(link => link.setAttribute('aria-busy', String(value)));
     if (retryDownload) retryDownload.disabled = value;
     if (lockDownload) lockDownload.disabled = value;
+    updateAccessMethod();
     updateDownloadControls();
     if (!value) scheduleAvailabilityRefresh();
   }
@@ -155,10 +212,10 @@
       downloadStatus.dataset.tone = error ? 'error' : 'normal';
     }
     if (retryDownload) retryDownload.hidden = !error;
-    if (retryLabel) retryLabel.textContent = pendingFileSave ? 'Escolher onde salvar' : 'Tentar novamente';
+    if (retryLabel) retryLabel.textContent = pendingFileSave ? 'Escolher onde salvar' : pendingAuthorizedDownload ? 'Retomar download autorizado' : 'Tentar novamente';
   }
   function availabilityProtected() {
-    return downloadBusy || Boolean(passwordDialog?.open) || Boolean(pendingFileSave);
+    return downloadBusy || Boolean(passwordDialog?.open) || Boolean(pendingFileSave) || Boolean(pendingAuthorizedDownload);
   }
   function deferBackgroundAvailability(sequence) {
     if (pageSuspended || availabilityProtected()) {
@@ -184,6 +241,7 @@
     appliedAvailabilitySequence = sequence;
     availabilityReady = true;
     lastVisibility = state.visibility;
+    universalEnabled = state.universalEnabled !== false;
     updateDownloadSession();
     const available = new Map((state.platforms || []).map(item => [item.platform, item]));
     downloadLinks.forEach(link => {
@@ -205,7 +263,7 @@
     });
     if (typeof state.version === 'string') document.querySelectorAll('[data-game-version]').forEach(element => { element.textContent = state.version; });
     const accessLabel = available.size && [...available.values()].some(item => item.available)
-      ? (state.visibility === 'private' ? (hasDownloadSession() ? 'Acesso privado liberado neste navegador' : 'Acesso por senha') : 'Download liberado')
+      ? (state.visibility === 'private' ? (!universalEnabled ? 'Acesso por código de download' : (hasDownloadSession() ? 'Acesso privado liberado neste navegador' : 'Acesso por senha ou código')) : 'Download liberado')
       : 'Instaladores em preparação';
     if (!background || availabilityOwnsStatus) showDownloadStatus(`Versão ${state.version || '1.1.0'} · ${accessLabel}`, false, true);
     return state;
@@ -270,6 +328,7 @@
     try { Promise.resolve(unsubscribe?.()).catch(() => {}); } catch { /* Page teardown must not interrupt the browser. */ }
   }
   async function startDownload(result, context = {}, preferFileSystem = false) {
+    if (context.accessMethod === 'code') pendingAuthorizedDownload = { result, context };
     if (result?.kind === 'multipart') {
       if (!window.InvoxMultipartDownloads?.start) throw Object.assign(new Error(), { code: 'download_unsupported' });
       const controller = new AbortController();
@@ -289,14 +348,16 @@
             showDownloadStatus(percent === 100 ? 'Arquivo verificado. Finalizando a gravação...' : `Baixando e verificando o instalador: ${percent}%. Mantenha esta página aberta.`);
           }
         });
+        pendingAuthorizedDownload = null;
         showDownloadStatus('Arquivo verificado. Seu navegador está finalizando o download.');
         updateDownloadSession();
       } catch (error) {
         if (error?.code === 'save_location_required') pendingFileSave = { result, context };
+        if (['download_cancelled', 'download_expired', 'download_changed', 'unavailable'].includes(error?.code)) pendingAuthorizedDownload = null;
         throw error;
       } finally {
         activeDownload = null;
-        if (cancelDownload) cancelDownload.hidden = true;
+        if (cancelDownload) cancelDownload.hidden = !pendingAuthorizedDownload;
       }
       return;
     }
@@ -309,26 +370,34 @@
     document.body.append(link);
     link.click();
     link.remove();
+    pendingAuthorizedDownload = null;
     showDownloadStatus('Download autorizado. Seu navegador iniciará o arquivo.');
     updateDownloadSession();
   }
   function downloadFailure(error, platform, trigger) {
     if (error?.code === 'download_cancelled') {
       pendingFileSave = null;
+      pendingAuthorizedDownload = null;
       showDownloadStatus('Download cancelado. Nenhum arquivo foi confirmado.');
       return;
     }
     if (error?.code === 'unavailable') unavailablePlatform(platform);
     if (error?.code === 'offline') unavailableConnection();
     updateDownloadSession();
-    if (error?.code === 'password_required') askPassword(platform, trigger);
+    if (error?.code === 'universal_disabled') {
+      universalEnabled = false;
+      updateDownloadSession();
+      askPassword(platform, trigger);
+    } else if (error?.code === 'password_required') askPassword(platform, trigger);
     else showDownloadStatus(errorCopy(error), true);
   }
   function askPassword(platform, trigger) {
     pendingDownload = { platform, trigger };
+    codeAttempt = null;
     passwordInput.value = '';
     passwordStatus.textContent = '';
-    document.getElementById('download-password-description').textContent = `O download para ${platformNames[platform]} está reservado. Informe a senha de acesso para continuar.`;
+    updateAccessMethod();
+    document.getElementById('download-password-description').textContent = `O download para ${platformNames[platform]} está reservado. ${universalEnabled ? 'Use a chave universal ou um código de download.' : 'Use um código de download para continuar.'}`;
     openDialog(passwordDialog, trigger);
   }
 
@@ -340,12 +409,15 @@
       event.preventDefault();
       if (downloadBusy || !availabilityReady || link.dataset.available !== 'true' || link.getAttribute?.('aria-disabled') === 'true') return;
       const platform = link.dataset.download;
+      pendingAuthorizedDownload = null;
+      pendingFileSave = null;
+      if (cancelDownload) cancelDownload.hidden = true;
       setDownloadBusy(true);
       showDownloadStatus('Conferindo acesso ao download...');
       try {
         const state = await refreshAvailability();
         if (!state.platforms?.some(item => item.platform === platform && item.available)) throw Object.assign(new Error(), { code: 'unavailable' });
-        if (state.visibility === 'private' && !hasDownloadSession()) askPassword(platform, link);
+        if (state.visibility === 'private' && (!universalEnabled || !hasDownloadSession())) askPassword(platform, link);
         else await startDownload(await backend().download(platform), { platform, trigger: link });
       } catch (error) {
         downloadFailure(error, platform, link);
@@ -359,26 +431,61 @@
     if (!pendingDownload || passwordSubmit.disabled || !passwordForm.reportValidity()) return;
     const current = ++attempt;
     const selected = pendingDownload;
+    const isCode = accessMethod === 'code';
     let enteredPassword = passwordInput.value;
     passwordInput.value = '';
+    if (isCode && !codeAttempt) {
+      const code = enteredPassword.trim();
+      if (!code) { passwordStatus.textContent = 'Informe seu código de download.'; passwordInput.focus(); return; }
+      try { codeAttempt = { platform: selected.platform, code, requestId: crypto.randomUUID() }; }
+      catch { passwordStatus.textContent = 'Não foi possível iniciar uma tentativa segura. Use um navegador atualizado.'; return; }
+    }
+    const redemption = isCode ? codeAttempt : null;
+    let authorized = false;
     passwordSubmit.disabled = true;
     setDownloadBusy(true);
     passwordSubmit.textContent = 'VERIFICANDO ACESSO...';
     passwordStatus.textContent = '';
     try {
-      const result = await backend().download(selected.platform, enteredPassword);
+      const result = isCode
+        ? await backend().download(selected.platform, '', { code: redemption.code, requestId: redemption.requestId })
+        : await backend().download(selected.platform, enteredPassword);
+      authorized = true;
       enteredPassword = '';
+      if (redemption) {
+        redemption.code = '';
+        if (codeAttempt === redemption) codeAttempt = null;
+      }
       if (current !== attempt || !passwordDialog.open) return;
+      const context = { ...selected, accessMethod: isCode ? 'code' : 'universal' };
       if (result?.kind === 'multipart') {
         passwordDialog.close();
-        try { await startDownload(result, selected); }
+        try { await startDownload(result, context); }
         catch (error) { downloadFailure(error, selected.platform, selected.trigger); }
       } else {
-        await startDownload(result);
+        await startDownload(result, context);
         passwordDialog.close();
       }
     } catch (error) {
       if (current !== attempt || !passwordDialog.open) return;
+      if (isCode && authorized) {
+        passwordDialog.close();
+        downloadFailure(error, selected.platform, selected.trigger);
+        return;
+      }
+      if (isCode && uncertainCodeResponse(error)) {
+        passwordStatus.textContent = errorCopy(error) + ' A tentativa foi mantida. Use Recuperar download para tentar novamente sem iniciar outra tentativa.';
+        return;
+      }
+      if (redemption) {
+        redemption.code = '';
+        if (codeAttempt === redemption) codeAttempt = null;
+      }
+      if (error?.code === 'universal_disabled') {
+        universalEnabled = false;
+        accessMethod = 'code';
+        updateDownloadSession();
+      }
       if (error?.code === 'unavailable' || error?.code === 'offline') {
         if (error.code === 'unavailable') unavailablePlatform(selected.platform);
         else unavailableConnection();
@@ -393,17 +500,21 @@
       setDownloadBusy(false);
       if (current === attempt) {
         passwordSubmit.disabled = false;
-        passwordSubmit.textContent = 'LIBERAR DOWNLOAD';
+        updateAccessMethod();
+        if (passwordDialog.open && passwordStatus.textContent) (codeAttempt ? passwordSubmit : passwordInput).focus();
       }
     }
   });
   passwordDialog?.addEventListener('close', () => {
     attempt += 1;
     pendingDownload = null;
+    if (codeAttempt) codeAttempt.code = '';
+    codeAttempt = null;
     passwordInput.value = '';
     passwordStatus.textContent = '';
     passwordSubmit.disabled = false;
     passwordSubmit.textContent = 'LIBERAR DOWNLOAD';
+    updateAccessMethod();
     scheduleAvailabilityRefresh();
   });
   async function retryAvailability(allowFileSave = false) {
@@ -416,16 +527,32 @@
       finally { setDownloadBusy(false); }
       return;
     }
+    if (pendingAuthorizedDownload) {
+      const pending = pendingAuthorizedDownload;
+      try { await startDownload(pending.result, pending.context); }
+      catch (error) { downloadFailure(error, pending.context.platform, pending.context.trigger); }
+      finally { setDownloadBusy(false); }
+      return;
+    }
     showDownloadStatus('Consultando os instaladores...', false, true);
     try { await refreshAvailability(); }
     catch (error) { showDownloadStatus(errorCopy(error), true, true); }
     finally { setDownloadBusy(false); }
   }
   retryDownload?.addEventListener('click', () => retryAvailability(true));
-  cancelDownload?.addEventListener('click', () => activeDownload?.abort());
+  cancelDownload?.addEventListener('click', () => {
+    if (activeDownload) { activeDownload.abort(); return; }
+    pendingAuthorizedDownload = null;
+    pendingFileSave = null;
+    if (cancelDownload) cancelDownload.hidden = true;
+    showDownloadStatus('Download cancelado.');
+    scheduleAvailabilityRefresh();
+  });
   lockDownload?.addEventListener('click', async () => {
     if (downloadBusy) return;
     pendingFileSave = null;
+    pendingAuthorizedDownload = null;
+    if (cancelDownload) cancelDownload.hidden = true;
     setDownloadBusy(true);
     showDownloadStatus('Encerrando acesso privado...');
     try {

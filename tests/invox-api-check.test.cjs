@@ -6,7 +6,7 @@ vm.runInNewContext(source+'\nglobalThis.exports={createHandler,createUnavailable
 const {createHandler,createUnavailableHandler,passwordHash,passwordMatches}=context.exports;
 const ADMIN='11111111-1111-4111-8111-111111111111',FEEDBACK='22222222-2222-4222-8222-222222222222';
 function harness(options={}){
- const db={invox_admins:[{email:'admin@example.test',username:'admin',user_id:ADMIN,enabled:true}],invox_site_settings:[{id:true,visibility:'public',download_password_hash:null,version:'1.1.0',release_notes:'',updated_at:'2026-11-16T00:00:00Z'}],invox_feedbacks:[],invox_installers:[{platform:'windows',path:'windows/1.1.0/test.exe',file_name:'INVOX-1.1.0.exe',size:1024,version:'1.1.0'}],invox_uploads:[],invox_announcements:[]};
+ const db={invox_admins:[{email:'admin@example.test',username:'admin',user_id:ADMIN,enabled:true}],invox_site_settings:[{id:true,visibility:'public',download_universal_enabled:true,download_password_hash:null,download_access_generation:1,download_mode_generation:1,version:'1.1.0',release_notes:'',updated_at:'2026-11-16T00:00:00Z'}],invox_feedbacks:[],invox_installers:[{platform:'windows',path:'windows/1.1.0/test.exe',file_name:'INVOX-1.1.0.exe',size:1024,version:'1.1.0'}],invox_uploads:[],invox_announcements:[]};
  const logs={sign:[],upload:[],rpc:[],auth:[],anonymousAuth:[],queries:[]};
  const history=[];
  function snapshot(item,action){const entry={id:`77777777-7777-4777-8777-${String(history.length+1).padStart(12,'0')}`,platform:item.platform,version:item.version,fileName:item.file_name,size:item.size,publishedAt:'2026-11-16T00:00:00.000Z',action,migrated:false};history.push(entry);item.current_history_id=entry.id;}
@@ -31,12 +31,13 @@ function harness(options={}){
  const service={from:table=>new Query(table),auth:{getUser:async token=>{logs.auth.push(token);return {data:{user:controls.user},error:controls.authError?{message:'invalid token'}:null};}},rpc:async(name,args)=>{
   logs.rpc.push([name,args]);
   if(name==='invox_take_rate_limit')return {data:controls.rate,error:controls.rateError?{message:'SQL SECRET'}:null};
-  if(name==='invox_record_analytics')return {data:true,error:null};
+  if(name==='invox_record_analytics'||name==='invox_authorize_universal_legacy')return {data:true,error:null};
+  if(name==='invox_download_codes_list')return {data:[],error:null};
   if(name==='invox_installer_history_list')return controls.tableError==='invox_installer_history'?{data:null,error:{message:'SQL SECRET'}}:{data:history.slice(-args.p_limit).reverse().map(entry=>({...entry,isCurrent:db.invox_installers.some(item=>item.current_history_id===entry.id)})),error:null};
   if(name==='invox_multipart_cleanup_due')return {data:[],error:null};
   if(name==='invox_storage_status')return {data:{capacityBytes:args.p_budget_bytes,usedBytes:0,reservedBytes:0,availableBytes:args.p_budget_bytes,cleanupPendingBytes:0},error:null};
   if(name==='invox_reserve_single_upload'){db.invox_uploads.push({path:args.p_path,platform:args.p_platform,file_name:args.p_file_name,size:args.p_size,version:args.p_version,created_by:args.p_admin_id});return {data:null,error:null};}
-  if(name==='invox_create_download_session')return {data:'2026-12-16T00:00:00Z',error:null};
+  if(name==='invox_issue_universal_session')return {data:'2026-12-16T00:00:00Z',error:null};
   if(name==='invox_publish_release'){
    Object.assign(db.invox_site_settings[0],{version:args.p_version,release_notes:args.p_release_notes});
    for(const file of args.p_files){db.invox_installers=db.invox_installers.filter(item=>item.platform!==file.platform);const item={platform:file.platform,path:file.path,file_name:file.fileName,size:file.size,version:file.version||args.p_version};snapshot(item,'published');db.invox_installers.push(item);}
