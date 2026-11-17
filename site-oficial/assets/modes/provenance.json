@@ -57,14 +57,14 @@
     "engineArchiveSha512": "83decd58fdf67b9d657958a1ae6bf1929c20785315a81effe245874cdc57acb709bf868e00778a96984338c1b29dafdb453c6847747694621c6ecf5da2259993",
     "engineChecksumVerifiedAgainstOfficialRelease": true,
     "renderer": "gl_compatibility / OpenGL 3.3",
-    "method": "Godot Movie Writer PNG frames from the original presentation-only stages, with the Parkour marker visibility override declared below, encoded as VP9 WebM",
+    "method": "Godot Movie Writer native frames with the declared Domination floor and Parkour marker overrides, encoded as VP9 WebM",
     "width": 640,
     "height": 360,
     "fps": 20,
     "originalModels": false,
     "originalCamera": true,
     "originalLighting": true,
-    "originalMotion": true,
+    "originalMotion": false,
     "sourceFilesModified": true,
     "autoloadsEnabled": false,
     "microphoneEnabled": false,
@@ -72,11 +72,12 @@
     "cardCaptionsBurnedIn": false,
     "encoder": "FFmpeg 9.0.2 / libvpx-vp9",
     "encoderCrf": 24,
-    "posterMethod": "Native first frame matching video startup; Parkour includes the declared native marker override. No raster editing.",
-    "loopNote": "No interpolation, crossfade, color grading or animation retiming during encoding. Native motions are retained; only the declared Parkour marker appearance is changed.",
-    "originalModelsNote": "Original models are retained for all scenes; Parkour alone has a larger native sphere, a lighter material and a native 3D outline. The other four modes are unchanged.",
+    "posterMethod": "Native first frame matching video startup, including declared presentation overrides. No raster editing.",
+    "loopNote": "Native cadence, loops and visibility phases retained. No interpolation, crossfade, color grading or retiming during encoding.",
+    "originalModelsNote": "The other three modes are unchanged. Domination omits the rectangular arena floor; Parkour uses the declared larger purple sphere and outline.",
     "originalRepositoryModified": false,
-    "sourceFilesModifiedScope": "Only scripts/ui/room_mode_stage.gd in the isolated render fixture. The original repository checkout and source hashes above remain unchanged."
+    "sourceFilesModifiedScope": "Only scripts/ui/room_mode_stage.gd in two isolated render fixtures. Original source checkout and original hashes remain unchanged.",
+    "originalMotionNote": "Native timing and paths are preserved except the Parkour support height, corrected from 0.22 to 0.277 to avoid platform penetration."
   },
   "modes": [
     {
@@ -250,24 +251,56 @@
         "ribbon_period": 55.5
       },
       "loopSelection": {
-        "method": "closest unmodified frame to first frame within native 8–12 second capture",
+        "method": "Preserved native loop length from the original selection; only the floor geometry is omitted",
         "frames": 180,
-        "duration": 9,
-        "selectedMse": 0.84,
-        "originalTenSecondMse": 122.77
+        "duration": 9
       },
       "assets": [
         {
           "file": "mode-domination.webm",
-          "bytes": 90353,
-          "sha256": "0dfc29fdb3f0f35d5febd783471cb8bbfb0866842496dd5882328b1afb0e63ff"
+          "bytes": 86779,
+          "sha256": "f3d751a6df5490a89b36987b6aa44c056556dc9b8da94380ef1ad7e0cfa8af84"
         },
         {
           "file": "mode-domination.png",
-          "bytes": 29368,
-          "sha256": "da3b87a1ed5a742f70072191688ccb263f2fc80f91ddfd0cdbca2726c8c1d2f2"
+          "bytes": 24930,
+          "sha256": "5a2ec716070961bf61dc02fc65f7b7accb0e6f7717117edf519ad5e5d77fd5e9"
         }
-      ]
+      ],
+      "presentationOverride": {
+        "purpose": "Remove the gray rectangular floor behind the control points",
+        "scope": "Domination only; isolated render fixture",
+        "removedNode": {
+          "name": "NeutralControlArena",
+          "mesh": "BoxMesh",
+          "size": [
+            5.4,
+            0.1,
+            2.8
+          ],
+          "position": [
+            0,
+            0.03,
+            0
+          ],
+          "color": "#272a35"
+        },
+        "preserved": [
+          "camera",
+          "lighting",
+          "circular control bases",
+          "rings",
+          "A/B/C labels",
+          "native movement",
+          "9 second loop"
+        ],
+        "fixtureFile": {
+          "path": "scripts/ui/room_mode_stage.gd",
+          "sha256": "f04f9174a4a47eabee6cbc3752e3f413409b2c50b030b11f8e7a724281bd4c6e"
+        },
+        "originalSourceSha256": "a3e75eceebe359854eff1d8bd6a69fa155f7f7b7a4e66cc35a226914ffd40d01",
+        "reproduction": "domination-preview-override.md"
+      }
     },
     {
       "id": "parkour",
@@ -298,17 +331,17 @@
       "assets": [
         {
           "file": "mode-parkour.webm",
-          "bytes": 62790,
-          "sha256": "e0587f10a75b36bae6efda9b7910067117a7568dbfd3bf18bcee5e30a9693bcc"
+          "bytes": 49284,
+          "sha256": "c6f342e1ceb6abb05069ae594778109d6308f69016cd35f62b1000aab143d57b"
         },
         {
           "file": "mode-parkour.png",
-          "bytes": 5450,
-          "sha256": "21731440cb75d2d30bc5df27701dc7b4f039663f2c9b84285d2624dc4e1eebf8"
+          "bytes": 5386,
+          "sha256": "a6151a979e330fe65890bc24074cffa16075ce32585af4aee44cb0ea0ce1d82e"
         }
       ],
       "presentationOverride": {
-        "purpose": "Make the native jumping marker readable in small website cards",
+        "purpose": "Keep the purple jumping sphere readable and above platform surfaces",
         "scope": "Parkour marker only; isolated fixture, not the original game project",
         "original": {
           "radius": 0.1,
@@ -318,12 +351,12 @@
         "rendered": {
           "radius": 0.18,
           "height": 0.36,
-          "color": "#f7edff",
+          "color": "#b51fff",
           "shading": "unshaded",
           "outline": {
             "method": "native sphere inverted hull",
             "scale": 1.1,
-            "color": "#6a278d",
+            "color": "#4d0a6b",
             "cullMode": "front",
             "castsShadow": false
           }
@@ -332,17 +365,34 @@
           "camera",
           "lighting",
           "platform geometry",
-          "trajectory",
-          "timing",
+          "horizontal trajectory",
+          "sine arc amplitude",
+          "jump cadence",
           "visibility phase",
           "10 second period"
         ],
         "fixtureFile": {
           "path": "scripts/ui/room_mode_stage.gd",
-          "sha256": "48958300ccd0d3027127862967e5238867825b38f55b567700af0b31e1f1460d"
+          "sha256": "1749c0316f1f2be0edea0dea3d7a69ee21d9cff609a81362b20c748b38e6ed0b"
         },
         "originalSourceSha256": "a3e75eceebe359854eff1d8bd6a69fa155f7f7b7a4e66cc35a226914ffd40d01",
-        "reproduction": "parkour-marker-override.md"
+        "reproduction": "parkour-marker-override.md",
+        "motionCorrection": {
+          "originalBaseHeight": 0.22,
+          "baseHeight": 0.277,
+          "platformHalfHeight": 0.075,
+          "outerSphereRadius": 0.198,
+          "landingClearance": 0.004,
+          "trajectory": "Original linear interpolation plus sin(fraction*PI)*0.28",
+          "validation": {
+            "samplesPerJump": 100001,
+            "jumps": 7,
+            "platforms": 8,
+            "comparisons": 5600056,
+            "minimumClearance": 0.00198512445,
+            "continuousClearanceLowerBound": 0.00197862938
+          }
+        }
       }
     }
   ]

@@ -17,7 +17,7 @@ Na raiz do repositório, execute `node scripts/serve-official.mjs`. Abra http://
 - `lobby.js`, `lobby.css`: blocos 3D e interação a cada frame durante a rolagem.
 - `modes.js`, `modes.css`, `assets/modes/`: apresentações dos cinco modos reais do jogo. Os vídeos só rodam quando visíveis; com movimento reduzido ou falha de reprodução, os cards mantêm a imagem estática.
 
-Os cards usam capturas nativas das cenas de seleção de modo do jogo, com os nomes Sandbox livre, Mata-mata, Pique-bandeira, Domínio e Parkour. A origem, o commit do jogo, os hashes e os parâmetros de exportação estão em `assets/modes/provenance.json`. A esfera de Parkour recebeu um ajuste nativo de tamanho e contraste, descrito em `assets/modes/parkour-marker-override.md`.
+Os cards usam capturas nativas das cenas de seleção de modo do jogo, com os nomes Sandbox livre, Mata-mata, Pique-bandeira, Domínio e Parkour. A origem, o commit do jogo, os hashes e os parâmetros de exportação estão em `assets/modes/provenance.json`. Domínio tem o piso retangular removido, conforme `assets/modes/domination-preview-override.md`. A esfera de Parkour recebeu ajustes de tamanho, cor e altura de apoio, com a verificação geométrica descrita em `assets/modes/parkour-marker-override.md`.
 
 Os botões não usam mais os antigos links Mediafire. O servidor confere a liberação e gera uma URL curta de download. Os arquivos reais e a senha de acesso são administrados pelo painel. Falhas de conexão bloqueiam o download; não existe fallback público.
 
