@@ -28,8 +28,15 @@
   let sessionEpoch = 0;
   let uploadController = null;
   let savedStorage = null;
+  let storageReplacement = null;
+  const replacementBox = document.getElementById('storage-replacement');
+  const replacementReview = document.getElementById('storage-replacement-review');
+  const replacementStart = document.getElementById('storage-replacement-start');
+  const replacementConfirm = document.getElementById('storage-replacement-confirm');
+  const replacementCancel = document.getElementById('storage-replacement-cancel');
   const uploaded = {};
   const savedInstallers = {};
+  const currentHistoryIds = {};
   const platformVersions = {};
   const platformVersionDirty = {};
   const platformVersionButtons = {};
@@ -394,6 +401,37 @@
   function fileMetadata(file) {
     return file ? { name: file.name, size: file.size, type: file.type, lastModified: file.lastModified } : null;
   }
+  function clearStorageReplacement() {
+    storageReplacement = null;
+    replacementBox.hidden = true;
+    replacementReview.hidden = true;
+    replacementStart.hidden = false;
+    replacementConfirm.disabled = true;
+    replacementConfirm.textContent = 'Confirmar remoção e reenviar';
+    replacementCancel.hidden = false;
+    document.getElementById('storage-replacement-status').textContent = '';
+  }
+  function replacementMatches() {
+    if (!storageReplacement) return false;
+    const current = savedInstallers[storageReplacement.platform];
+    const expected = storageReplacement.installer;
+    return files[storageReplacement.platform] === storageReplacement.file && (platformVersions[storageReplacement.platform].value.trim() || version.value.trim()) === storageReplacement.version && (!current ? storageReplacement.requested : current.path === expected.path && current.updatedAt === expected.updatedAt && current.uploadId === expected.uploadId && currentHistoryIds[storageReplacement.platform] === storageReplacement.historyId);
+  }
+  function offerStorageReplacement(platform,file) {
+    const current = savedInstallers[platform];
+    const historyId = currentHistoryIds[platform];
+    if (!current || !current.path || !historyId || !file || uploaded[platform]?.file === file || !savedStorage || !Number.isFinite(savedStorage.capacityBytes) || !Number.isFinite(savedStorage.availableBytes)) return;
+    if (file.size > savedStorage.capacityBytes || file.size > savedStorage.availableBytes + current.size) return;
+    storageReplacement = {platform:platform,file:file,version:platformVersions[platform].value.trim() || version.value.trim(),installer:Object.assign({},current),historyId:historyId,requested:false};
+    document.getElementById('storage-replacement-current').textContent = platforms[platform].label + ' · ' + current.fileName + ' · ' + formatBytes(current.size) + ' · v' + current.version;
+    document.getElementById('storage-replacement-next').textContent = platforms[platform].label + ' · ' + file.name + ' · ' + formatBytes(file.size) + ' · v' + storageReplacement.version;
+    document.getElementById('storage-replacement-warning').textContent = 'Downloads desta plataforma ficarão indisponíveis até a publicação do novo instalador. Downloads em andamento também poderão ser interrompidos.';
+    replacementReview.hidden = true;
+    replacementStart.hidden = false;
+    replacementConfirm.disabled = true;
+    document.getElementById('storage-replacement-status').textContent = '';
+    replacementBox.hidden = false;
+  }
   function updatePlatformButtons() {
     Object.keys(platforms).forEach(function (platform) {
       const current = savedInstallers[platform];
@@ -471,6 +509,7 @@
       return;
     }
     files[platform] = file;
+    clearStorageReplacement();
     if (!platformVersions[platform].value.trim()) platformVersions[platform].value = version.value.trim() || savedSettings.version;
     delete uploaded[platform];
     elements.input.value = '';
@@ -480,6 +519,7 @@
   Object.keys(platforms).forEach(function (platform) {
     const elements = fileElements(platform);
     platformVersions[platform].addEventListener('input', function () {
+      clearStorageReplacement();
       platformVersionDirty[platform] = true;
       platformVersions[platform].setCustomValidity('');
       updatePlatformButtons();
@@ -506,6 +546,7 @@
     releaseForm.querySelector('.remove-file[data-platform="' + platform + '"]').addEventListener('click', function () {
       if (busy) return;
       files[platform] = null;
+      clearStorageReplacement();
       platformVersions[platform].setCustomValidity('');
       if (!platformVersionDirty[platform]) platformVersions[platform].value = savedInstallers[platform]?.version || '';
       delete uploaded[platform];
@@ -517,6 +558,7 @@
   });
 
   version.addEventListener('input', function () {
+    clearStorageReplacement();
     version.setCustomValidity('');
     Object.keys(platforms).forEach(function (platform) {
       if (!savedInstallers[platform] && !platformVersionDirty[platform]) {
@@ -526,7 +568,7 @@
     });
     updatePlatformButtons();
   });
-  releaseForm.addEventListener('submit', async function (event) {
+  async function publishRelease(event) {
     event.preventDefault();
     if (busy) return;
     version.value = version.value.trim();
@@ -552,12 +594,14 @@
     progressBox.hidden = false;
     progress.removeAttribute('value');
     const results = [];
+    let failedUpload = null;
     try {
       for (let index = 0; index < selected.length; index += 1) {
         const platform = selected[index];
         const file = files[platform];
         status.textContent = 'Enviando ' + platforms[platform].label + ' (' + (index + 1) + '/' + selected.length + ')…';
         if (!uploaded[platform] || uploaded[platform].file !== file) {
+          failedUpload = {platform:platform,file:file};
           const metadata = await window.InvoxBackend.uploadInstaller({platform:platform,file:file,version:selectedVersions[platform],uploadLimitBytes:savedSettings.uploadLimitBytes,objectUploadLimitBytes:savedSettings.objectUploadLimitBytes,signal:controller.signal,onStatus:function (message) {
             if (epoch === sessionEpoch) status.textContent = platforms[platform].label + ': ' + message;
           },onProgress:function (percent) {
@@ -566,6 +610,7 @@
           }});
           if (epoch !== sessionEpoch) return;
           uploaded[platform] = {file:file,metadata:metadata};
+          failedUpload = null;
         }
         results.push(Object.assign({}, uploaded[platform].metadata, {version:selectedVersions[platform]}));
         progress.removeAttribute('value');
@@ -580,6 +625,7 @@
         renderFile(platform);
       });
       releaseDirty = false;
+      clearStorageReplacement();
       loadState(state);
       progress.value = 100;
       status.textContent = 'Versão ' + state.settings.version + ' publicada.';
@@ -587,6 +633,7 @@
     } catch (error) {
       if (epoch !== sessionEpoch) return;
       status.textContent = 'A publicação não foi concluída. Sua seleção foi preservada para tentar novamente.';
+      if (error.code === 'storage_quota_exceeded' && failedUpload) offerStorageReplacement(failedUpload.platform,failedUpload.file);
       toast(error.message || 'Não foi possível publicar a versão.', 'error');
     } finally {
       if (uploadController === controller) uploadController = null;
@@ -595,6 +642,61 @@
         setBusy(releaseForm, false);
       }
     }
+  }
+  releaseForm.addEventListener('submit',publishRelease);
+  replacementStart.addEventListener('click',function () {
+    if (busy || !replacementMatches()) { clearStorageReplacement(); return; }
+    replacementStart.hidden = true;
+    replacementReview.hidden = false;
+    replacementConfirm.disabled = false;
+  });
+  replacementCancel.addEventListener('click',function () {
+    if (busy || storageReplacement?.requested) return;
+    replacementReview.hidden = true;
+    replacementStart.hidden = false;
+    replacementConfirm.disabled = true;
+  });
+  replacementConfirm.addEventListener('click',async function () {
+    if (busy || !storageReplacement) return;
+    const intent = storageReplacement;
+    const status = document.getElementById('storage-replacement-status');
+    if (!replacementMatches()) { clearStorageReplacement(); document.getElementById('upload-status').textContent = 'O instalador publicado mudou. Sua seleção foi preservada; confira a versão atual antes de tentar novamente.'; return; }
+    const epoch = sessionEpoch;
+    let retry = false;
+    intent.requested = true;
+    busy = true;
+    setBusy(releaseForm,true);
+    replacementConfirm.disabled = true;
+    replacementCancel.hidden = true;
+    status.textContent = 'Liberando o instalador confirmado. Aguarde…';
+    try {
+      const state = await window.InvoxBackend.prepareInstallerReplacement({platform:intent.platform,expectedHistoryId:intent.historyId,confirm:true,replacement:{fileName:intent.file.name,size:intent.file.size,version:intent.version}});
+      if (epoch !== sessionEpoch) return;
+      if (!state || !state.settings || !Array.isArray(state.installers) || state.replacement?.platform !== intent.platform || state.replacement?.historyId !== intent.historyId || typeof state.replacementPending !== 'boolean') throw new Error('O servidor não confirmou a liberação. Sua seleção foi preservada; tente concluir novamente.');
+      loadState(state);
+      if (state.replacementPending) {
+        replacementConfirm.textContent = 'Concluir liberação de espaço';
+        status.textContent = 'O instalador foi retirado dos downloads, mas a limpeza ainda está pendente. Clique para concluir a liberação antes de reenviar.';
+      } else if (state.installers.some(function (row) { return row.platform === intent.platform; })) {
+        clearStorageReplacement();
+        document.getElementById('upload-status').textContent = 'Outra publicação desta plataforma foi encontrada. Confira a versão atual antes de tentar novamente; sua seleção foi preservada.';
+      } else if (!state.storage || !Number.isFinite(state.storage.availableBytes) || state.storage.availableBytes < intent.file.size) {
+        clearStorageReplacement();
+        document.getElementById('upload-status').textContent = 'O instalador confirmado foi removido, mas ainda não há espaço suficiente para o novo arquivo. Sua seleção foi preservada.';
+      } else {
+        clearStorageReplacement();
+        retry = files[intent.platform] === intent.file;
+      }
+    } catch (error) {
+      if (epoch === sessionEpoch) status.textContent = error.message || 'Não foi possível concluir a liberação. Sua seleção foi preservada.';
+    } finally {
+      if (epoch === sessionEpoch) {
+        busy = false;
+        setBusy(releaseForm,false);
+        replacementConfirm.disabled = !storageReplacement || !replacementMatches();
+      }
+    }
+    if (retry && epoch === sessionEpoch) await publishRelease({preventDefault:function () {}});
   });
 
   function historyElement(tag, className, text) {
@@ -659,11 +761,14 @@
       uploadHelp.push('A versão anterior é preservada até concluir a publicação.');
     }
     document.getElementById('upload-limit').textContent = uploadHelp.join(' ');
+    Object.keys(platforms).forEach(function (platform) { delete currentHistoryIds[platform]; });
+    (state.history || []).forEach(function (row) { if (row.isCurrent && Object.prototype.hasOwnProperty.call(platforms,row.platform)) currentHistoryIds[row.platform] = row.id; });
     Object.keys(platforms).forEach(function (platform) {
       const card = fileElements(platform).dropzone.closest('.upload-card');
       let current = card.querySelector('.current-installer');
       if (!current) { current = document.createElement('p'); current.className = 'current-installer'; card.append(current); }
       const installer = (state.installers || []).find(function (row) { return row.platform === platform; });
+      if (installer?.currentHistoryId) currentHistoryIds[platform] = installer.currentHistoryId;
       if (installer) savedInstallers[platform] = installer;
       else delete savedInstallers[platform];
       if (!platformVersionDirty[platform] && !files[platform]) platformVersions[platform].value = installer?.version || '';
@@ -679,6 +784,7 @@
     if (uploadController) uploadController.abort();
     uploadController = null;
     sessionEpoch += 1;
+    clearStorageReplacement();
     busy = false;
     savedStorage = null;
     accessForm.reset();
@@ -698,6 +804,7 @@
       files[platform] = null;
       delete uploaded[platform];
       delete savedInstallers[platform];
+      delete currentHistoryIds[platform];
       platformVersionDirty[platform] = false;
       platformVersions[platform].value = '';
       platformVersions[platform].setCustomValidity('');
@@ -735,6 +842,7 @@
   });
   copyCount.addEventListener('input',function () { copyCount.setCustomValidity(''); });
   document.getElementById('download-code-hide').addEventListener('click',function () { hideCode(); codeStatus('Seleção ocultada. Os tokens continuam disponíveis nas listas.'); codeControls(); });
+  clearStorageReplacement();
   updateVisibility();
   renderAccessPreview();
   updatePlatformButtons();

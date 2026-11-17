@@ -306,5 +306,16 @@ const ticket=(path='windows/1.1.0/upload-id/INVOX.exe')=>({path,token:'signed-up
   assert(!JSON.stringify(h.sessionStorage.entries()).includes('AB3D7K'));
   checks.push('Short-token inventory and copy selection require admin authentication and never persist plaintext tokens');
  }
+ {
+  const h=harness();
+  const replacement={platform:'windows',expectedHistoryId:'88888888-8888-4888-8888-888888888888',confirm:true,replacement:{fileName:'INVOX.exe',size:549447078,version:'1.2.1'}};
+  await assert.rejects(()=>h.api.prepareInstallerReplacement(replacement),e=>e.code==='unauthorized');
+  assert.equal(h.state.fetchCalls.length,0);
+  h.state.session=sessionFixture;h.state.responses.push(ok({replacement:{releasedBytes:549447078},installers:[]}));
+  await h.api.prepareInstallerReplacement(replacement);
+  assert.deepEqual(h.state.fetchCalls[0].body,{action:'prepare-installer-replacement',...replacement});
+  assert.equal(h.state.fetchCalls[0].options.headers.Authorization,'Bearer access-token-fixture');
+  checks.push('Installer replacement requires authentication and forwards explicit confirmation, immutable current release and new file metadata');
+ }
  console.log(JSON.stringify({result:'PASS',checks},null,2));
 })().catch(error=>{console.error(error);process.exitCode=1;});

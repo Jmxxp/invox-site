@@ -51,6 +51,8 @@ O histórico abaixo reúne as últimas 100 publicações e alterações, com arq
 
 O limite por arquivo vem do servidor e aparece acima dos cartões. O envio acontece para armazenamento privado, sem executar os instaladores. Se a publicação falhar, a seleção permanece para tentar novamente. Um arquivo enviado só fica disponível no site depois de a publicação ser confirmada.
 
+Se o espaço não comportar o instalador atual e o novo ao mesmo tempo, a falha de envio oferece **Substituir liberando espaço**. A confirmação mostra a plataforma, os arquivos e seus tamanhos. Ela pausa os downloads daquela revisão e pode interromper transferências em andamento; o servidor libera os bytes antigos e o painel retoma o envio selecionado. O novo arquivo só volta a ficar disponível após publicar. Cancelar a confirmação mantém o atual. A revisão e o histórico são conferidos no servidor para não remover uma publicação diferente que outra aba tenha atualizado. Se a limpeza ficar pendente, conclua a mesma operação antes de reenviar; a seleção, versões e notas são preservadas na sessão.
+
 Instaladores grandes são armazenados em partes de 20 MiB, com hashes e retomada. Após recarregar, selecione novamente o mesmo arquivo e versão para aproveitar as partes já confirmadas. O painel mostra a capacidade disponível, que precisa comportar a versão anterior e a nova durante a troca. O teto lógico de 1,5 GiB não aumenta a cota total do projeto.
 
 As credenciais administrativas e chaves de serviço não devem ser incluídas nos arquivos públicos. O navegador recebe somente URL e chave publicável; as operações administrativas exigem sessão válida e permissão de administrador.

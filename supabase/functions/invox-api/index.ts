@@ -19,7 +19,7 @@ const DOWNLOAD_TOKEN = /^[a-f0-9]{64}$/;
 const ACCESS_CODE = /^(?:[A-Z0-9]{6}|INVOX-[A-F0-9]{64})$/;
 const SHORT_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const SETTINGS_COLUMNS = 'visibility,download_password_hash,download_universal_enabled,download_access_generation,download_mode_generation,version,release_notes,updated_at';
-const INSTALLER_COLUMNS = 'platform,path,file_name,size,version,updated_at,multipart_upload_id,sha256';
+const INSTALLER_COLUMNS = 'platform,path,file_name,size,version,updated_at,multipart_upload_id,sha256,current_history_id';
 const ADMIN_COLUMNS = 'email,username,user_id,enabled';
 const FEEDBACK_COLUMNS = 'id,name,contact,message,kind,source,status,note,created_at,updated_at';
 const ANNOUNCEMENT_COLUMNS = 'id,title,message,active,published_at,updated_at';
@@ -147,7 +147,7 @@ function fileManifest(value, requirePath = true, uploadLimitBytes = DEFAULT_UPLO
   return requirePath ? { platform, path, fileName, size } : { platform, fileName, size };
 }
 function settingsOutput(settings, objectUploadLimitBytes = DEFAULT_UPLOAD_LIMIT) { return { visibility: settings.visibility, universalEnabled: settings.download_universal_enabled, version: settings.version, releaseNotes: settings.release_notes, hasPassword: Boolean(settings.download_password_hash), uploadLimitBytes: UPLOAD_LIMIT, objectUploadLimitBytes, multipartPartSizeBytes: PART_LIMIT, updatedAt: settings.updated_at }; }
-function installerOutput(item) { return { platform: item.platform, path: item.path, fileName: item.file_name, size: Number(item.size), version: item.version, updatedAt: item.updated_at, ...(item.multipart_upload_id ? { kind: 'multipart', uploadId: item.multipart_upload_id, sha256: item.sha256 } : {}) }; }
+function installerOutput(item) { return { platform: item.platform, path: item.path, fileName: item.file_name, size: Number(item.size), version: item.version, updatedAt: item.updated_at, currentHistoryId: item.current_history_id, ...(item.multipart_upload_id ? { kind: 'multipart', uploadId: item.multipart_upload_id, sha256: item.sha256 } : {}) }; }
 function publishedInstaller(item) {
   try {
     const multipart = Boolean(item.multipart_upload_id);
@@ -204,6 +204,8 @@ export function createHandler(dependencies) {
     const result = await service.rpc(name, args);
     if (result?.error) {
       if (result.error.message === 'invox_storage_quota_exceeded') throw fault('storage_quota_exceeded', 'Não há espaço disponível para este envio. Libere envios pendentes antes de tentar novamente.', 409);
+      if (result.error.message === 'invox_installer_changed') throw fault('installer_changed', 'O instalador publicado mudou. Atualize o painel antes de confirmar a substituição.', 409);
+      if (result.error.message === 'invox_replacement_conflict') throw fault('replacement_conflict', 'Esta confirmação pertence a outro arquivo. Atualize o painel para continuar.', 409);
       if (result.error.message === 'invox_download_ticket_expired') throw fault('download_expired', 'Este download expirou ou o acesso foi alterado. Inicie o download novamente.', 401);
       if (result.error.code === '42501') throw fault('forbidden', 'Este envio não está disponível para sua conta.', 403);
       if (result.error.code === 'P0002') throw fault('unavailable', 'Este instalador não está disponível.', 404);
@@ -411,14 +413,15 @@ export function createHandler(dependencies) {
   }
   async function adminState(admin) {
     await opportunisticCleanup(admin);
-    const [settings, installerRows, feedbackResult, storage, history, announcementRows, downloadCodes, codePool] = await Promise.all([
+    const [settings, installerRows, feedbackResult, storage, history, announcementRows, downloadCodes, codePool, installerReplacements] = await Promise.all([
       getSettings(), installers(), service.from('invox_feedbacks').select(FEEDBACK_COLUMNS).order('created_at', { ascending: false }).order('id', { ascending: false }).limit(200),
       multipartRpc('invox_storage_status', { p_budget_bytes: storageBudgetBytes }),
       multipartRpc('invox_installer_history_list', { p_admin_id: admin.user_id, p_limit: 100 }), announcements(),
-      accessRpc('invox_download_codes_list', { p_admin_id: admin.user_id, p_limit: 100 }), downloadCodePool(admin)
+      accessRpc('invox_download_codes_list', { p_admin_id: admin.user_id, p_limit: 100 }), downloadCodePool(admin),
+      multipartRpc('invox_installer_replacements_list', { p_admin_id: admin.user_id })
     ]);
-    if (!Array.isArray(history) || !Array.isArray(downloadCodes)) throw unavailable();
-    return { admin: { username: admin.username, email: admin.email }, settings: settingsOutput(settings, uploadLimitBytes), installers: installerRows.map(installerOutput), feedbacks: resultData(feedbackResult).map(feedbackOutput), storage, history, announcements: announcementRows.map(announcementOutput), downloadCodes, codePool };
+    if (!Array.isArray(history) || !Array.isArray(downloadCodes) || !Array.isArray(installerReplacements)) throw unavailable();
+    return { admin: { username: admin.username, email: admin.email }, settings: settingsOutput(settings, uploadLimitBytes), installers: installerRows.map(installerOutput), feedbacks: resultData(feedbackResult).map(feedbackOutput), storage, history, announcements: announcementRows.map(announcementOutput), downloadCodes, codePool, installerReplacements };
   }
   async function login(request, body) {
     await rateLimit(request, 'admin_login', 900, 10);
@@ -690,6 +693,31 @@ export function createHandler(dependencies) {
     if (data.paths.length) { const removed = await service.storage.from(PART_BUCKET).remove(data.paths); if (removed.error) throw unavailable(); }
     return { ...await multipartRpc('invox_finish_multipart_cleanup', { p_admin_id: admin.user_id, p_upload_id: id }), removedParts: data.paths.length };
   }
+  async function prepareInstallerReplacement(body, admin) {
+    if (body.confirm !== true || !PLATFORMS.includes(body.platform) || !body.replacement || typeof body.replacement !== 'object') throw invalidInput();
+    const historyId = uploadId(body.expectedHistoryId).toLowerCase();
+    const file = fileManifest({ ...body.replacement, platform: body.platform }, false, UPLOAD_LIMIT), version = versionValue(body.replacement.version);
+    let plan = await multipartRpc('invox_prepare_installer_replacement', { p_admin_id: admin.user_id, p_platform: body.platform, p_history_id: historyId,
+      p_file_name: file.fileName, p_size: file.size, p_version: version, p_budget_bytes: storageBudgetBytes });
+    invalidatePublic();
+    if (plan.replacement?.historyId !== historyId || plan.replacement?.platform !== body.platform || typeof plan.replacementPending !== 'boolean'
+      || !Array.isArray(plan.paths) || plan.paths.length < 1 || plan.paths.length > 77 || ![BUCKET, PART_BUCKET].includes(plan.bucket)) throw unavailable();
+    if (plan.bucket === PART_BUCKET) {
+      if (!UUID.test(plan.uploadId) || plan.paths.some(path => typeof path !== 'string' || !new RegExp('^uploads/' + plan.uploadId + '/[0-9]{3}-[a-f0-9]{64}\\.part$').test(path))) throw unavailable();
+    } else if (plan.paths.length !== 1 || typeof plan.paths[0] !== 'string' || !plan.paths[0].startsWith(body.platform + '/') || /[\\\x00-\x1f\x7f]/.test(plan.paths[0]) || plan.paths[0].split('/').some(part => !part || part === '.' || part === '..')) throw unavailable();
+    if (plan.replacementPending) {
+      const deadline = Date.now() + 45000;
+      for (let offset = 0; offset < plan.paths.length; offset += 4) {
+        // Existing signed uploads are insert-only. Tiny occupied paths fence late
+        // TUS retries while releasing the original bytes through Storage API.
+        const results = await Promise.allSettled(plan.paths.slice(offset, offset + 4).map(path => service.storage.from(plan.bucket).upload(path, new Uint8Array([0]), { upsert: true, contentType: 'application/octet-stream', cacheControl: '0' })));
+        if (results.some(result => result.status === 'rejected' || result.value?.error) || Date.now() >= deadline) break;
+      }
+      plan = await multipartRpc('invox_finish_installer_replacement', { p_admin_id: admin.user_id, p_history_id: historyId });
+    }
+    if (plan.replacement?.historyId !== historyId || typeof plan.replacementPending !== 'boolean' || !Number.isSafeInteger(plan.releasedBytes) || plan.releasedBytes < 0) throw unavailable();
+    return { ...await adminState(admin), replacement: plan.replacement, releasedBytes: plan.releasedBytes, replacementPending: plan.replacementPending };
+  }
   async function createUpload(body, admin) {
     await opportunisticCleanup(admin);
     const file = fileManifest(body, false, uploadLimitBytes), version = versionValue(body.version);
@@ -756,7 +784,7 @@ export function createHandler(dependencies) {
         case 'logout-download': return json(await logoutDownload(request, body));
         case 'feedback': return json(await feedback(request, body), 201);
       }
-      if (!['admin-state', 'analytics', 'reset-analytics', 'save-access', 'create-download-code', 'create-download-codes', 'download-code-pool', 'select-copy-download-codes', 'revoke-download-code', 'update-feedback', 'create-upload', 'save-release', 'update-installer-version', 'create-multipart-upload', 'multipart-part-upload', 'confirm-multipart-part', 'finish-multipart-upload', 'preview-multipart-upload', 'cleanup-multipart-upload', 'save-announcement', 'set-announcement-active'].includes(body.action)) throw invalidInput();
+      if (!['admin-state', 'analytics', 'reset-analytics', 'save-access', 'create-download-code', 'create-download-codes', 'download-code-pool', 'select-copy-download-codes', 'revoke-download-code', 'update-feedback', 'create-upload', 'save-release', 'update-installer-version', 'prepare-installer-replacement', 'create-multipart-upload', 'multipart-part-upload', 'confirm-multipart-part', 'finish-multipart-upload', 'preview-multipart-upload', 'cleanup-multipart-upload', 'save-announcement', 'set-announcement-active'].includes(body.action)) throw invalidInput();
       const admin = await authenticate(request);
       if (!['admin-state', 'analytics'].includes(body.action)) await rateLimit(request, 'admin_write', 60, 60, admin.user_id);
       switch (body.action) {
@@ -779,6 +807,7 @@ export function createHandler(dependencies) {
         case 'finish-multipart-upload': return json(await multipartRpc('invox_finish_multipart_upload', { p_admin_id: admin.user_id, p_upload_id: uploadId(body.uploadId) }));
         case 'preview-multipart-upload': return json(await mintMultipartDownload(uploadId(body.uploadId), await getSettings(), admin));
         case 'cleanup-multipart-upload': return json(await cleanupMultipartUpload(body, admin));
+        case 'prepare-installer-replacement': return json(await prepareInstallerReplacement(body, admin));
         case 'save-release': return json(await saveRelease(body, admin));
         case 'update-installer-version': return json(await updateInstallerVersion(body, admin));
       }

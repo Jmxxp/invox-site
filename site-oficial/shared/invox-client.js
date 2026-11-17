@@ -123,6 +123,7 @@
     selectDownloadCodes: data => request('select-copy-download-codes', data, { admin: true }),
     revokeDownloadCode: id => request('revoke-download-code', { id }, { admin: true }),
     saveRelease: data => request('save-release', data, { admin: true }),
+    prepareInstallerReplacement: data => request('prepare-installer-replacement', data, { admin: true }),
     updateInstallerVersion: (platform, version) => request('update-installer-version', { platform, version }, { admin: true }),
     updateFeedback: data => request('update-feedback', data, { admin: true }),
     saveAnnouncement: data => request('save-announcement', data, { admin: true }),

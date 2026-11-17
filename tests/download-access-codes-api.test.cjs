@@ -25,6 +25,7 @@ function harness(){
   if(name==='invox_multipart_cleanup_due'||name==='invox_installer_history_list')return {data:[],error:null};
   if(name==='invox_storage_status')return {data:{},error:null};
   if(name==='invox_download_codes_list')return {data:list(),error:null};
+  if(name==='invox_installer_replacements_list')return {data:[],error:null};
   if(name==='invox_admin_code_pool'){
    const rows=list(),partition={valid:valid(),used:rows.filter(row=>row.codeFormat==='short'&&row.usedCount>0),inactive:rows.filter(row=>row.codeFormat==='short'&&row.usedCount===0&&row.status!=='active'),legacy:rows.filter(row=>row.codeFormat==='legacy')};
    return {data:{...Object.fromEntries(Object.entries(partition).map(([key,rows])=>[key,key==='legacy'?rows.slice(0,100):rows.slice(0,100).map(row=>metadata(row.id))])),totals:Object.fromEntries(Object.entries(partition).map(([key,rows])=>[key,rows.length])),evaluatedAt:now},error:null};
