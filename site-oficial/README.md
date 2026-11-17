@@ -8,7 +8,7 @@ Na raiz do repositório, execute `node scripts/serve-official.mjs`. Abra http://
 
 ## Arquivos principais
 
-- `index.html`, `styles.css`, `about.css`, `premium.css`, `navigation.css`: layout, conteúdo e navegação com ícones e quinas cortadas.
+- `index.html`, `styles.css`, `hero.css`, `about.css`, `premium.css`, `navigation.css`: layout, hero interativa e navegação com ícones e quinas cortadas.
 - `script.js`, `downloads.css`, `integration.css`: plataformas, versões individuais dos instaladores, downloads e diálogo de senha.
 - `feedback.js`, `feedback.css`: envio real de feedback.
 - `shared/invox-client.js`: conexão pública, autenticação e chamadas ao servidor.
@@ -24,6 +24,6 @@ Cada botão permanece desativado até o servidor confirmar que existe instalador
 
 A configuração inicial é 1.1.0. A disponibilidade depende de publicar instaladores reais e implantar o backend conforme `../supabase/README.md`. Salvar estes arquivos não cria o banco nem publica a função.
 
-A marca usa o PNG oficial com filtro para retirar o fundo preto. A hero usa `assets/hero-scene-3d.png`, arte raster com acabamento de render 3D gerada pela ferramenta integrada a partir da composição anterior; o prompt está em `assets/hero-3d-prompt.txt`. A passagem da imagem para o fundo e o gradiente lateral são controlados por CSS, assim como os ícones e divisores da faixa de recursos. A geometria das três formas do lobby preserva as 941 coordenadas verificadas do código original; materiais WebGL são uma adaptação.
+A marca usa o PNG oficial com filtro para retirar o fundo preto. A hero usa uma única instância da animação interativa de blocos, à direita do texto no desktop e abaixo dele no celular. A geometria das três formas preserva as 941 coordenadas verificadas do código original; materiais WebGL e enquadramento são adaptados ao navegador. A antiga arte `assets/hero-scene-3d.png` permanece apenas como imagem de compartilhamento; não é carregada como fundo da hero.
 
 As fontes, os ícones e as bibliotecas mantêm suas licenças em `assets/` e `shared/vendor/`. A navegação, os efeitos e os blocos respeitam movimento reduzido.

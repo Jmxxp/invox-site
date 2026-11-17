@@ -1,0 +1,104 @@
+/* The original interactive lobby now shares the hero with the wordmark. */
+.hero{
+  display:grid;
+  grid-template-columns:minmax(0,.94fr) minmax(0,1.06fr);
+  align-items:center;
+  gap:clamp(24px,3vw,58px);
+  height:auto;
+  min-height:clamp(480px,43vw,650px);
+  max-height:none;
+  padding-block:clamp(18px,1.3vw,26px);
+}
+.hero::before{
+  inset:-24px -4vw;
+  background:radial-gradient(ellipse at 73% 48%,#a329ff14 0%,#791bc509 36%,transparent 68%);
+  -webkit-mask-image:none;
+  mask-image:none;
+}
+.hero .hero-copy{
+  position:relative;
+  inset:auto;
+  width:100%;
+  min-width:0;
+  max-width:650px;
+  justify-self:start;
+}
+.hero .hero-wordmark{
+  width:min(30.86vw,622px);
+  max-width:100%;
+  height:auto;
+}
+.hero .hero-description{
+  max-width:100%;
+  margin-top:clamp(16px,1.3vw,26px);
+}
+.hero .hero-description p{
+  font-size:clamp(18px,1.58vw,30px);
+  line-height:1.4;
+  gap:.15em;
+}
+.hero .lobby-section{
+  width:100%;
+  min-width:0;
+  max-width:none;
+  margin:0;
+  padding:0;
+  align-self:center;
+  scroll-margin-top:var(--chrome-height,78px);
+}
+.hero .lobby-stage{
+  width:100%;
+  max-width:660px;
+  margin-inline:auto;
+  padding:0;
+  border:0;
+  border-radius:0;
+  background:transparent;
+  box-shadow:none;
+  clip-path:none;
+  overflow:visible;
+}
+.hero #lobby-canvas{
+  width:100%;
+  height:clamp(480px,36vw,620px);
+  max-width:100%;
+  border:0;
+  background:transparent;
+}
+.hero #lobby-canvas:focus-visible{
+  outline:2px solid #ce7cff;
+  outline-offset:-4px;
+}
+.hero .lobby-canvas-fallback{
+  font-size:clamp(100px,14vw,200px);
+}
+@media(min-width:761px) and (max-width:1100px){
+  .hero{
+    grid-template-columns:minmax(0,48fr) minmax(0,52fr);
+    gap:18px;
+    min-height:440px;
+    padding-block:24px;
+  }
+  .hero .hero-description{margin-top:18px}
+  .hero .hero-description p{font-size:clamp(16px,1.9vw,20px)}
+  .hero #lobby-canvas{height:clamp(380px,42vw,470px)}
+}
+@media(max-width:760px){
+  .hero{
+    grid-template-columns:minmax(0,1fr);
+    gap:12px;
+    min-height:0;
+    padding-block:30px 16px;
+  }
+  .hero::before{
+    inset:0 -20px;
+    background:radial-gradient(ellipse at 53% 65%,#a329ff12 0%,#791bc507 36%,transparent 69%);
+  }
+  .hero .hero-copy{max-width:580px}
+  .hero .hero-wordmark{width:min(340px,82vw);max-width:100%}
+  .hero .hero-description{max-width:520px;margin-top:18px}
+  .hero .hero-description p{font-size:clamp(16px,3.8vw,22px);line-height:1.4;gap:.2em}
+  .hero .lobby-stage{max-width:560px}
+  .hero #lobby-canvas{height:clamp(350px,85vw,430px)}
+  .hero .lobby-canvas-fallback{font-size:clamp(110px,24vw,170px)}
+}

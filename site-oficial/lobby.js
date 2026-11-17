@@ -1,6 +1,6 @@
 /* Browser port of INVOX's InvoxBlockVortex, revision
  * 1d74177d6d12be982cd6d75995e5f290395132e3. Original authored voxel cells,
- * timing, camera and cursor spring; native WebGL2 beveled-block material. */
+ * timing and cursor spring; responsive framing and native WebGL2 material. */
 (() => {
   "use strict";
   const canvas = document.getElementById("lobby-canvas");
@@ -239,8 +239,8 @@
     if (state.phase === "build") framing = 1 - smooth((state.time - 2.15) / (BUILD - 2.15));
     else if (state.phase === "unbuild") framing = smooth(state.time / 1.15);
     else if (state.phase === "stage") framing = 1;
-    const distance = 10.8 * Math.max(1, 0.98 * height / width);
-    let eye = rotateY(mul([6.1, 5.5, 11.8], distance / 14.2 * (1 + framing * 0.20)), Math.sin(elapsed * 0.19) * 0.035);
+    const distance = 12.0 * Math.max(1, 0.98 * height / width);
+    let eye = rotateY(mul([6.1, 5.5, 11.8], distance / 14.2 * (1 + framing * 0.50)), Math.sin(elapsed * 0.19) * 0.035);
     eye[1] += Math.sin(elapsed * 0.26) * 0.10; eye = add(eye, [parallax[0] * 0.20, -parallax[1] * 0.12, 0]);
     const forward = normal(sub([0, -0.70, 0], eye)), right = normal(cross(forward, [0, 1, 0])), up = cross(right, forward);
     const view = [right[0], up[0], -forward[0], 0, right[1], up[1], -forward[1], 0, right[2], up[2], -forward[2], 0, -dot(right, eye), -dot(up, eye), dot(forward, eye), 1];
