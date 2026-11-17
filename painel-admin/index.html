@@ -15,16 +15,16 @@
   <link rel="stylesheet" href="styles.css?v=20261118-unified-services">
   <link rel="stylesheet" href="analytics.css?v=20261117-panel-refresh">
   <link rel="stylesheet" href="announcements.css?v=20261117-lobby-preview">
-  <link rel="stylesheet" href="access.css?v=20261117-code-batches">
+  <link rel="stylesheet" href="access.css?v=20261117-short-tokens">
   <script defer src="../site-oficial/shared/vendor/supabase.js"></script>
   <script defer src="../site-oficial/shared/vendor/tus.min.js"></script>
   <script defer src="../site-oficial/shared/vendor/sha256.umd.min.js"></script>
-  <script defer src="../site-oficial/shared/invox-client.js?v=20261117-code-batches"></script>
+  <script defer src="../site-oficial/shared/invox-client.js?v=20261117-short-tokens"></script>
   <script defer src="admin.js?v=20261118-unified-services"></script>
   <script defer src="analytics.js?v=20261117-realtime"></script>
   <script defer src="feedback.js?v=20261118-unified-services"></script>
   <script defer src="announcements.js?v=20261117-lobby-preview"></script>
-  <script defer src="settings.js?v=20261117-code-batches"></script>
+  <script defer src="settings.js?v=20261117-short-tokens"></script>
 </head>
 <body>
   <a class="skip-link" href="#main-content">Ir para o conteúdo</a>
@@ -145,7 +145,7 @@
     </aside>
   </form>
   <section class="settings-card access-codes" aria-labelledby="download-codes-heading">
-    <div class="settings-card-heading"><i class="fa-solid fa-ticket" aria-hidden="true"></i><div><h3 id="download-codes-heading">Tokens de download</h3><p>Escolha a quantidade e gere sua lista. Cada token libera 1 download por padrão.</p></div></div>
+    <div class="settings-card-heading"><i class="fa-solid fa-ticket" aria-hidden="true"></i><div><h3 id="download-codes-heading">Tokens de download</h3><p>Gere tokens de 6 caracteres. Cada token libera 1 download por padrão.</p></div></div>
     <form id="download-code-form" class="download-code-form" aria-busy="false">
       <div class="field-group code-quantity-field"><label for="download-code-quantity">Quantidade de tokens</label><input id="download-code-quantity" type="number" min="1" max="100" step="1" value="1" required inputmode="numeric" aria-describedby="download-code-quantity-hint"><span id="download-code-quantity-hint" class="field-hint">De 1 a 100 tokens por lote.</span></div>
       <button id="download-code-create" class="button button-primary" type="submit"><i class="fa-solid fa-plus" aria-hidden="true"></i><span id="download-code-create-label">GERAR TOKENS</span></button>
@@ -159,9 +159,14 @@
       </details>
     </form>
     <p class="field-hint access-code-help">Cada uso é contado ao liberar um download; retentativas da mesma transferência não gastam outro uso. O limite vale para o código inteiro, em qualquer plataforma, quando o site está privado.</p>
-    <div id="download-code-result" class="download-code-result" hidden><div><strong>Tokens gerados</strong><p id="download-code-result-label"></p><p>Copie agora. Os tokens completos não serão mostrados novamente.</p></div><label class="sr-only" for="download-code-secret">Lista de tokens gerados</label><textarea id="download-code-secret" rows="8" readonly autocomplete="off" spellcheck="false" wrap="off"></textarea><div class="download-code-secret-actions"><button id="download-code-copy" class="button button-ghost button-small" type="button"><i class="fa-solid fa-copy" aria-hidden="true"></i>Copiar tokens</button><button id="download-code-hide" class="button button-ghost button-small" type="button">Ocultar tokens</button></div></div>
+    <div class="download-code-copy-tools"><div class="field-group"><label for="download-code-copy-quantity">Tokens por cópia</label><input id="download-code-copy-quantity" type="number" min="1" max="100" step="1" value="1" required inputmode="numeric"></div><button id="download-code-copy" class="button button-primary" type="button"><i class="fa-solid fa-copy" aria-hidden="true"></i>Copiar próximos tokens</button><button id="download-code-restart" class="button button-ghost button-small" type="button"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i>Iniciar nova rodada de cópia</button></div>
+    <p id="download-code-copy-progress" class="field-hint"></p><p class="field-hint">A cópia confere os tokens disponíveis no momento. Tokens já usados, expirados, revogados ou copiados nesta rodada ficam fora da seleção.</p>
+    <div id="download-code-result" class="download-code-result" hidden><div><strong>Seleção de tokens</strong><p id="download-code-result-label"></p></div><label class="sr-only" for="download-code-secret">Seleção de tokens</label><textarea id="download-code-secret" rows="8" readonly autocomplete="off" spellcheck="false" wrap="off"></textarea><div class="download-code-secret-actions"><button id="download-code-hide" class="button button-ghost button-small" type="button">Ocultar seleção</button></div></div>
     <p id="download-code-status" class="download-code-status" role="status" aria-live="polite"></p>
-    <div class="download-code-list-heading"><h4>Tokens mais recentes</h4><span id="download-code-count" class="field-hint">0 tokens</span></div><p id="download-code-empty" class="download-code-empty">Entre no painel para consultar os tokens.</p><div id="download-code-list" class="download-code-list" role="list" aria-label="Tokens de download"></div>
+    <div class="download-code-list-heading"><h4>Tokens disponíveis</h4><div class="download-code-heading-tools"><span id="download-code-count" class="field-hint">0 tokens</span><button id="download-code-refresh" class="button button-ghost button-small" type="button"><i class="fa-solid fa-arrows-rotate" aria-hidden="true"></i>Atualizar tokens</button></div></div><p id="download-code-empty" class="download-code-empty">Entre no painel para consultar os tokens.</p><div id="download-code-list" class="download-code-list" role="list" aria-label="Tokens disponíveis"></div>
+    <div class="download-code-list-heading"><h4>Tokens usados</h4><span id="download-code-count-used" class="field-hint">0 tokens</span></div><p class="field-hint">Saem dos disponíveis após o primeiro uso, mesmo quando ainda têm downloads restantes.</p><p id="download-code-empty-used" class="download-code-empty">Nenhum token usado.</p><div id="download-code-list-used" class="download-code-list" role="list" aria-label="Tokens usados"></div>
+    <details class="download-code-history"><summary>Expirados e revogados <span id="download-code-count-inactive" class="field-hint">0 tokens</span></summary><p id="download-code-empty-inactive" class="download-code-empty">Nenhum token expirado ou revogado.</p><div id="download-code-list-inactive" class="download-code-list" role="list" aria-label="Tokens expirados e revogados"></div></details>
+    <details class="download-code-history"><summary>Tokens de versões anteriores <span id="download-code-count-legacy" class="field-hint">0 tokens</span></summary><p class="field-hint">Os códigos antigos continuam com as regras originais e ficam fora da cópia em grupos.</p><p id="download-code-empty-legacy" class="download-code-empty">Nenhum token de versões anteriores.</p><div id="download-code-list-legacy" class="download-code-list" role="list" aria-label="Tokens de versões anteriores"></div></details>
   </section>
 </section>
 <section id="panel-downloads" class="admin-panel" aria-labelledby="downloads-heading" hidden>

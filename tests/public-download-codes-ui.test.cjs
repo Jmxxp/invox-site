@@ -101,6 +101,18 @@ function harness({ universal = false, grant = false } = {}) {
   looksLikeToken.queue.push({ url: 'https://wsfdwyghqqaerivyrbil.supabase.co/storage/v1/object/sign/invox-installers/fixture.exe?token=fixture', accessMethod: 'universal' });
   await looksLikeToken.enter('INVOX-FIXTURE-UNIVERSAL'); assert.equal(looksLikeToken.grant(), true, 'only the server result determines the access method');
   assert.equal(looksLikeToken.calls[0].options.accessCode, 'INVOX-FIXTURE-UNIVERSAL');
+  const shortToken = harness({ universal: true }); await tick(); await shortToken.links[0].emit('click');
+  shortToken.queue.push({ error: { code: 'offline', status: 0 } }); await shortToken.enter('AB3D7K');
+  assert.equal(shortToken.calls[0].options.accessCode, 'AB3D7K', 'a six-character code is forwarded exactly');
+  assert.match(shortToken.calls[0].options.requestId, /^[a-f0-9-]{36}$/);
+  await shortToken.enter();
+  assert.deepEqual(shortToken.calls[0].options, shortToken.calls[1].options, 'six-character recovery preserves both code and request UUID');
+  assert.equal(shortToken.grant(), false, 'six characters do not imply universal access');
+  const shortUniversal = harness({ universal: true }); await tick(); await shortUniversal.links[0].emit('click');
+  shortUniversal.queue.push({ url: 'https://wsfdwyghqqaerivyrbil.supabase.co/storage/v1/object/sign/invox-installers/fixture.exe?token=fixture', accessMethod: 'universal' });
+  await shortUniversal.enter('AB3D7K');
+  assert.equal(shortUniversal.calls[0].options.accessCode, 'AB3D7K');
+  assert.equal(shortUniversal.grant(), true, 'the same length can be universal only when selected by the server');
   const raw = harness({ universal: true }); await tick(); await raw.links[0].emit('click'); await raw.enter(' credential with spaces ');
   assert.equal(raw.calls[0].options.accessCode, ' credential with spaces ', 'the UI does not normalize a potentially exact universal credential');
   const choose = harness({ universal: true }); await tick(); await choose.links[0].emit('click');

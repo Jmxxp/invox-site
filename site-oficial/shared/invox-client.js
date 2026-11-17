@@ -119,6 +119,8 @@
     saveAccess: data => request('save-access', data, { admin: true }),
     createDownloadCode: data => request('create-download-code', data, { admin: true }),
     createDownloadCodes: data => request('create-download-codes', data, { admin: true }),
+    downloadCodePool: () => request('download-code-pool', {}, { admin: true }),
+    selectDownloadCodes: data => request('select-copy-download-codes', data, { admin: true }),
     revokeDownloadCode: id => request('revoke-download-code', { id }, { admin: true }),
     saveRelease: data => request('save-release', data, { admin: true }),
     updateInstallerVersion: (platform, version) => request('update-installer-version', { platform, version }, { admin: true }),

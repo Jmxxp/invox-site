@@ -32,6 +32,7 @@ function harness(options={}){
   if(name==='invox_multipart_cleanup_due')return {data:[],error:null};
   if(name==='invox_installer_history_list')return {data:[],error:null};
   if(name==='invox_download_codes_list')return {data:[],error:null};
+  if(name==='invox_admin_code_pool')return {data:{valid:[],used:[],inactive:[],legacy:[],totals:{valid:0,used:0,inactive:0,legacy:0},evaluatedAt:'2026-11-17T12:00:00Z'},error:null};
   if(name==='invox_storage_status')return {data:{capacityBytes:args.p_budget_bytes,usedBytes:0,reservedBytes:0,availableBytes:args.p_budget_bytes,cleanupPendingBytes:0},error:null};
   if(name==='invox_create_multipart_upload'){
    if(controls.quota||Math.ceil(args.p_size/PART)*PART>args.p_budget_bytes)return error('invox_storage_quota_exceeded');

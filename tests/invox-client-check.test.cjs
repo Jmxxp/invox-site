@@ -291,5 +291,20 @@ const ticket=(path='windows/1.1.0/upload-id/INVOX.exe')=>({path,token:'signed-up
   assert.equal(h.state.fetchCalls[0].options.headers.Authorization,'Bearer access-token-fixture');
   checks.push('Batch token generation requires authentication and forwards the exact immutable batch parameters');
  }
+ {
+  const h=harness(),excludeIds=['88888888-8888-4888-8888-888888888888'];
+  await assert.rejects(()=>h.api.downloadCodePool(),e=>e.code==='unauthorized');
+  await assert.rejects(()=>h.api.selectDownloadCodes({count:5,excludeIds}),e=>e.code==='unauthorized');
+  assert.equal(h.state.fetchCalls.length,0);
+  h.state.session=sessionFixture;
+  h.state.responses.push(ok({valid:[{code:'AB3D7K'}],used:[],inactive:[],legacy:[]}),ok({codes:['AB3D7K'],entries:[],availableCount:1}));
+  const pool=await h.api.downloadCodePool(),selection=await h.api.selectDownloadCodes({count:5,excludeIds});
+  assert.deepEqual(h.state.fetchCalls.map(call=>call.body),[{action:'download-code-pool'},{action:'select-copy-download-codes',count:5,excludeIds}]);
+  assert(h.state.fetchCalls.every(call=>call.options.headers.Authorization==='Bearer access-token-fixture'));
+  assert.equal(pool.valid[0].code.length,6);assert.equal(selection.codes[0],'AB3D7K');
+  assert(!JSON.stringify(h.localStorage.entries()).includes('AB3D7K'));
+  assert(!JSON.stringify(h.sessionStorage.entries()).includes('AB3D7K'));
+  checks.push('Short-token inventory and copy selection require admin authentication and never persist plaintext tokens');
+ }
  console.log(JSON.stringify({result:'PASS',checks},null,2));
 })().catch(error=>{console.error(error);process.exitCode=1;});

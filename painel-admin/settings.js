@@ -45,8 +45,11 @@
   const historyDate = new Intl.DateTimeFormat('pt-BR', {timeZone:'America/Sao_Paulo',dateStyle:'short',timeStyle:'medium'});
   const codeForm = document.getElementById('download-code-form');
   const codeFields = {count:document.getElementById('download-code-quantity'),label:document.getElementById('download-code-label'),max:document.getElementById('download-code-max'),validity:document.getElementById('download-code-validity')};
+  const copyCount = document.getElementById('download-code-copy-quantity');
   let downloadCodes = [], codeBusy = false, codesAuthenticated = false, codeAttempt = null;
-  let secretCode = '', secretView = 0;
+  let secretCode = '', secretEntries = [], codeOperation = '';
+  let codePool = null;
+  const copiedCodeIds = new Set();
 
 
   function toast(message, tone) {
@@ -58,7 +61,7 @@
   }
   function codeState(row) {
     if (row.revokedAt || row.status === 'revoked') return 'revoked';
-    if (row.status === 'expired' || (row.expiresAt && Date.parse(row.expiresAt) <= Date.now())) return 'expired';
+    if (row.status === 'expired') return 'expired';
     if (row.status === 'exhausted' || row.remainingUses <= 0) return 'exhausted';
     return row.status === 'active' ? 'active' : 'unavailable';
   }
@@ -72,22 +75,57 @@
     (Array.isArray(rows) ? rows : []).forEach(function (row) {
       if (!validCode(row)) return;
       const old = merged.get(row.id);
-      merged.set(row.id,old ? Object.assign({},row,{label:row.label || '',usedCount:Math.max(old.usedCount,row.usedCount),remainingUses:Math.min(old.remainingUses,row.remainingUses),revokedAt:old.revokedAt || row.revokedAt}) : Object.assign({},row,{label:row.label || ''}));
+      const metadata = {id:row.id,label:row.label || '',maxUses:row.maxUses,usedCount:row.usedCount,remainingUses:row.remainingUses,createdAt:row.createdAt,expiresAt:row.expiresAt,revokedAt:row.revokedAt,status:row.status,prefix:row.prefix,codeFormat:row.codeFormat};
+      merged.set(row.id,old ? Object.assign(metadata,{usedCount:Math.max(old.usedCount,row.usedCount),remainingUses:Math.min(old.remainingUses,row.remainingUses),revokedAt:old.revokedAt || row.revokedAt,status:old.status === 'expired' ? 'expired' : row.status}) : metadata);
       merged.get(row.id).status = codeState(merged.get(row.id));
     });
-    downloadCodes = Array.from(merged.values()).sort(function (a,b) { return (Date.parse(b.createdAt) || 0) - (Date.parse(a.createdAt) || 0); }).slice(0,100);
+    downloadCodes = Array.from(merged.values()).sort(function (a,b) { return (Date.parse(b.createdAt) || 0) - (Date.parse(a.createdAt) || 0); });
+  }
+  function shortCode(value) { return typeof value === 'string' && /^[a-z0-9]{6}$/i.test(value); }
+  function acceptPool(pool) {
+    if (!pool || !['valid','used','inactive','legacy'].every(function (key) { return Array.isArray(pool[key]) && pool[key].every(validCode); })) throw new Error('Não foi possível confirmar a lista de tokens.');
+    if (!['valid','used','inactive'].every(function (key) { return pool[key].every(function (row) { return shortCode(row.code); }); })) throw new Error('Não foi possível confirmar os identificadores dos tokens.');
+    if (codePool && Date.parse(pool.evaluatedAt) < Date.parse(codePool.evaluatedAt)) return;
+    const next = {valid:[],used:[],inactive:[],legacy:[],totals:pool.totals || {},evaluatedAt:pool.evaluatedAt};
+    mergeCodes(['valid','used','inactive','legacy'].flatMap(function (key) { return pool[key]; }));
+    const metadataById = new Map(downloadCodes.map(function (row) { return [row.id,row]; }));
+    ['valid','used','inactive','legacy'].forEach(function (key) {
+      pool[key].forEach(function (row) {
+        const metadata = metadataById.get(row.id) || row;
+        const category = row.codeFormat === 'legacy' || key === 'legacy' ? 'legacy' : metadata.usedCount > 0 ? 'used' : codeState(metadata) === 'active' && shortCode(row.code) && key === 'valid' ? 'valid' : 'inactive';
+        next[category].push(category === 'legacy' ? Object.assign({},metadata) : Object.assign({},metadata,{code:shortCode(row.code) ? row.code : ''}));
+      });
+    });
+    codePool = next;
+  }
+  async function refreshCodePool(epoch) {
+    const pool = await window.InvoxBackend.downloadCodePool();
+    if (epoch !== sessionEpoch) return false;
+    acceptPool(pool); renderCodes(); return true;
   }
   function hideCode() {
-    secretView += 1; secretCode = '';
+    secretCode = ''; secretEntries = [];
     document.getElementById('download-code-secret').value = '';
     document.getElementById('download-code-result-label').textContent = '';
     document.getElementById('download-code-result').hidden = true;
   }
+  function showCodes(entries,codes) {
+    secretEntries = entries.map(function (entry,index) { return {id:entry.id,code:codes[index]}; });
+    secretCode = codes.join('\n\n');
+    document.getElementById('download-code-secret').value = secretCode;
+    document.getElementById('download-code-result-label').textContent = entries.length + (entries.length === 1 ? ' token selecionado' : ' tokens selecionados');
+    document.getElementById('download-code-result').hidden = !entries.length;
+  }
   function codeControls() {
     Object.values(codeFields).forEach(function (field) { field.disabled = codeBusy || !codesAuthenticated; });
     document.getElementById('download-code-create').disabled = codeBusy || !codesAuthenticated;
-    document.getElementById('download-code-create-label').textContent = codeBusy ? 'GERANDO…' : 'GERAR TOKENS';
-    document.getElementById('download-code-copy').disabled = !codesAuthenticated || !secretCode;
+    document.getElementById('download-code-create-label').textContent = codeOperation === 'create' ? 'GERANDO…' : 'GERAR TOKENS';
+    copyCount.disabled = codeBusy || !codesAuthenticated;
+    document.getElementById('download-code-copy').disabled = codeBusy || !codesAuthenticated || copiedCodeIds.size >= 500;
+    document.getElementById('download-code-copy').setAttribute('aria-busy',String(codeOperation === 'copy'));
+    document.getElementById('download-code-refresh').disabled = codeBusy || !codesAuthenticated;
+    document.getElementById('download-code-restart').disabled = codeBusy || !codesAuthenticated || copiedCodeIds.size === 0;
+    document.getElementById('download-code-copy-progress').textContent = copiedCodeIds.size + ' copiados nesta rodada. Copiar não consome downloads.' + (copiedCodeIds.size >= 500 ? ' Inicie uma nova rodada para continuar.' : '');
     document.getElementById('download-code-hide').disabled = !codesAuthenticated || !secretCode;
     codeForm.setAttribute('aria-busy',String(codeBusy));
   }
@@ -102,24 +140,41 @@
     return Number.isFinite(stamp) ? historyDate.format(new Date(stamp)) + ' · Brasília' : 'Data não informada';
   }
   function renderCodes() {
-    const list = document.getElementById('download-code-list');
-    list.replaceChildren();
-    document.getElementById('download-code-count').textContent = downloadCodes.length + (downloadCodes.length === 1 ? ' token' : ' tokens');
-    document.getElementById('download-code-empty').hidden = downloadCodes.length > 0;
-    document.getElementById('download-code-empty').textContent = codesAuthenticated ? 'Nenhum token criado ainda.' : 'Entre no painel para consultar os tokens.';
-    const states = {active:'Disponível',exhausted:'Esgotado',expired:'Expirado',revoked:'Revogado',unavailable:'Indisponível'};
-    downloadCodes.forEach(function (row) {
+    const groups = {valid:[],used:[],inactive:[],legacy:[]};
+    if (codePool) ['valid','used','inactive','legacy'].forEach(function (key) {
+      codePool[key].forEach(function (row) {
+        const known = downloadCodes.find(function (item) { return item.id === row.id; });
+        const current = known ? Object.assign({},row,known) : row;
+        const category = key === 'legacy' ? 'legacy' : current.usedCount > 0 ? 'used' : key === 'valid' && codeState(current) === 'active' ? 'valid' : 'inactive';
+        groups[category].push(current);
+      });
+    });
+    else groups.legacy = downloadCodes.slice(0,100);
+    const states = {active:'Disponível',exhausted:'Usado',expired:'Expirado',revoked:'Revogado',unavailable:'Indisponível'};
+    ['valid','used','inactive','legacy'].forEach(function (key) {
+      const suffix = key === 'valid' ? '' : '-' + key;
+      const list = document.getElementById('download-code-list' + suffix);
+      list.replaceChildren();
+      const total = Math.max(groups[key].length,Number(codePool?.totals?.[key]) || 0);
+      document.getElementById('download-code-count' + suffix).textContent = (total > groups[key].length ? groups[key].length + ' de ' : '') + total + (total === 1 ? ' token' : ' tokens');
+      const empty = document.getElementById('download-code-empty' + suffix);
+      empty.hidden = groups[key].length > 0;
+      empty.textContent = codesAuthenticated ? key === 'valid' ? 'Nenhum token disponível. Gere novos tokens ou atualize a lista.' : key === 'used' ? 'Nenhum token usado.' : key === 'legacy' ? 'Nenhum token de versões anteriores.' : 'Nenhum token expirado ou revogado.' : 'Entre no painel para consultar os tokens.';
+      groups[key].forEach(function (row) {
       const status = codeState(row), card = codeElement('article','download-code-entry');
       card.setAttribute('role','listitem');
       const content = codeElement('div');
-      content.append(codeElement('h5','',row.label || 'Sem identificação'),codeElement('span','download-code-mask',row.prefix ? String(row.prefix) + ' ••••' : 'Código protegido'));
+      if (key !== 'legacy' && shortCode(row.code)) content.append(codeElement('strong','download-token-value',row.code));
+      content.append(codeElement('h5','',row.label || (key === 'valid' ? 'Token de download' : 'Sem identificação')));
+      if (key === 'legacy') content.append(codeElement('span','download-code-mask',row.prefix ? String(row.prefix) + ' ••••' : 'Código protegido'));
       const usage = codeElement('p','download-code-usage');
       usage.append(codeElement('strong','',row.remainingUses + ' / ' + row.maxUses),codeElement('span','',row.remainingUses === 1 ? 'download restante' : 'downloads restantes'));
       const meta = codeElement('div','download-code-meta');
       meta.append(codeElement('span','','Criado em ' + codeDate(row.createdAt)),codeElement('span','',row.expiresAt ? 'Expira em ' + codeDate(row.expiresAt) : 'Sem expiração'));
       content.append(usage,meta);
-      const controls = codeElement('div','download-code-entry-controls'), badge = codeElement('span','download-code-state',states[status]);
+      const controls = codeElement('div','download-code-entry-controls'), badge = codeElement('span','download-code-state',key === 'used' ? 'USADO' : key === 'legacy' ? 'Formato anterior' : states[status]);
       badge.dataset.state = status; controls.append(badge);
+      if (copiedCodeIds.has(row.id)) controls.append(codeElement('span','download-code-copied','Copiado nesta rodada'));
       if (status === 'active') {
         const revoke = codeElement('button','button button-ghost button-small','Revogar');
         revoke.type = 'button'; revoke.dataset.revokeCode = row.id;
@@ -129,7 +184,9 @@
         controls.append(revoke);
       }
       card.append(content,controls); list.append(card);
+      });
     });
+    if (secretEntries.some(function (entry) { const row = downloadCodes.find(function (item) { return item.id === entry.id; }); return row && (row.usedCount > 0 || codeState(row) !== 'active'); })) hideCode();
     codeControls();
   }
   function codeParameters() {
@@ -156,26 +213,25 @@
         codeAttempt = {id:cryptography.randomUUID(),fingerprint:fingerprint};
       }
       const attempt = codeAttempt;
-      hideCode(); codeBusy = true; renderCodes(); codeStatus('Gerando tokens…');
+      hideCode(); codeBusy = true; codeOperation = 'create'; renderCodes(); codeStatus('Gerando tokens…');
       const result = await window.InvoxBackend.createDownloadCodes(Object.assign({id:attempt.id},params));
       if (epoch !== sessionEpoch) return;
       if (!result || !Array.isArray(result.codes) || result.codes.length !== params.count
-        || !result.codes.every(function (code) { return typeof code === 'string' && code.length > 0 && code.length <= 256 && !/[\r\n]/.test(code); })
+        || !result.codes.every(shortCode)
         || new Set(result.codes).size !== params.count || !Array.isArray(result.entries) || result.entries.length !== params.count
         || !result.entries.every(function (entry) { return validCode(entry) && entry.maxUses === params.maxUses; })
         || new Set(result.entries.map(function (entry) { return entry.id; })).size !== params.count || !Array.isArray(result.downloadCodes)) throw new Error('Não foi possível confirmar os tokens criados. Tente novamente com os mesmos campos.');
       mergeCodes(result.downloadCodes); mergeCodes(result.entries);
       codeAttempt = null;
-      secretCode = result.codes.join('\n\n'); secretView += 1;
-      document.getElementById('download-code-secret').value = secretCode;
-      document.getElementById('download-code-result-label').textContent = params.count + (params.count === 1 ? ' token' : ' tokens') + ' · ' + params.maxUses + (params.maxUses === 1 ? ' download por token' : ' downloads por token');
-      document.getElementById('download-code-result').hidden = false;
-      codeStatus('Tokens gerados. Copie a lista e compartilhe os acessos.','success');
+      const eligible = result.entries.map(function (row,index) { return {row:row,code:result.codes[index]}; }).filter(function (item) { return item.row.usedCount === 0 && codeState(item.row) === 'active'; });
+      showCodes(eligible.map(function (item) { return item.row; }),eligible.map(function (item) { return item.code; }));
+      codeStatus('Tokens de 6 caracteres gerados. Escolha quantos copiar abaixo.','success');
+      try { await refreshCodePool(epoch); } catch { if (epoch === sessionEpoch) codeStatus('Tokens gerados. Atualize a lista para confirmar os disponíveis.'); }
       renderCodes();
     } catch (error) {
       if (epoch === sessionEpoch) codeStatus(error.message || 'Não foi possível confirmar a criação. Tente novamente sem alterar os campos.','error');
     } finally {
-      if (epoch === sessionEpoch) { codeBusy = false; renderCodes(); }
+      if (epoch === sessionEpoch) { codeBusy = false; codeOperation = ''; renderCodes(); }
     }
   }
   async function revokeCode(id) {
@@ -183,7 +239,7 @@
     const item = downloadCodes.find(function (row) { return row.id === id; });
     if (!item || codeState(item) !== 'active') return;
     const epoch = sessionEpoch;
-    codeBusy = true; renderCodes(); codeStatus('Revogando código…');
+    codeBusy = true; codeOperation = 'revoke'; renderCodes(); codeStatus('Revogando código…');
     try {
       const result = await window.InvoxBackend.revokeDownloadCode(id);
       if (epoch !== sessionEpoch) return;
@@ -191,25 +247,53 @@
       if (!confirmed) throw new Error('O servidor não confirmou a revogação. Atualize a lista e tente novamente.');
       mergeCodes(result.downloadCodes);
       codeStatus('Código revogado. Ele não libera novos downloads.','success');
+      try { await refreshCodePool(epoch); } catch { if (epoch === sessionEpoch) codeStatus('Token revogado. Atualize a lista para conferir o histórico.'); }
     } catch (error) {
       if (epoch === sessionEpoch) codeStatus(error.message || 'Não foi possível revogar o código.','error');
     } finally {
-      if (epoch === sessionEpoch) { codeBusy = false; renderCodes(); }
+      if (epoch === sessionEpoch) { codeBusy = false; codeOperation = ''; renderCodes(); }
     }
   }
   async function copyCode() {
-    if (!secretCode || !codesAuthenticated) return;
-    const code = secretCode, view = secretView, epoch = sessionEpoch;
+    if (codeBusy || !codesAuthenticated) return;
+    const requested = Number(copyCount.value), epoch = sessionEpoch;
+    copyCount.setCustomValidity(Number.isInteger(requested) && requested >= 1 && requested <= 100 ? '' : 'Escolha de 1 a 100 tokens por cópia.');
+    if (!Number.isInteger(requested) || requested < 1 || requested > 100) { copyCount.reportValidity?.(); return; }
+    if (copiedCodeIds.size >= 500) { codeStatus('O limite desta rodada foi atingido. Inicie uma nova rodada de cópia para continuar.'); return; }
+    codeBusy = true; codeOperation = 'copy'; renderCodes(); codeStatus('Conferindo os próximos tokens disponíveis…');
     try {
-      if (typeof window.navigator?.clipboard?.writeText !== 'function') throw new Error('clipboard unavailable');
-      await window.navigator.clipboard.writeText(code);
-      if (epoch === sessionEpoch && view === secretView && secretCode === code) codeStatus('Tokens copiados.','success');
-    } catch {
-      if (epoch !== sessionEpoch || view !== secretView) return;
-      const input = document.getElementById('download-code-secret');
-      input.focus(); input.select?.(); input.setSelectionRange?.(0,input.value.length);
-      codeStatus('Selecione os tokens e copie manualmente. A cópia automática não foi confirmada.');
+      const count = Math.min(requested,500 - copiedCodeIds.size);
+      const result = await window.InvoxBackend.selectDownloadCodes({count:count,excludeIds:Array.from(copiedCodeIds)});
+      if (epoch !== sessionEpoch) return;
+      if (!result || !Array.isArray(result.codes) || result.codes.length > count || !result.codes.every(shortCode)
+        || new Set(result.codes).size !== result.codes.length || !Array.isArray(result.entries) || result.entries.length !== result.codes.length
+        || !result.entries.every(function (row) { return validCode(row) && row.codeFormat === 'short' && row.usedCount === 0 && codeState(row) === 'active' && !copiedCodeIds.has(row.id); })
+        || new Set(result.entries.map(function (row) { return row.id; })).size !== result.entries.length) throw new Error('Não foi possível confirmar os tokens disponíveis. Tente novamente.');
+      mergeCodes(result.entries);
+      const selected = result.entries.map(function (row,index) { return {entry:row,code:result.codes[index],latest:downloadCodes.find(function (item) { return item.id === row.id; })}; }).filter(function (item) { return item.latest && item.latest.usedCount === 0 && codeState(item.latest) === 'active' && item.latest.codeFormat === 'short'; });
+      if (!selected.length) { hideCode(); codeStatus('Não há próximos tokens disponíveis nesta rodada. Gere novos tokens ou inicie uma nova rodada de cópia.'); return; }
+      showCodes(selected.map(function (item) { return item.entry; }),selected.map(function (item) { return item.code; }));
+      try {
+        if (typeof window.navigator?.clipboard?.writeText !== 'function') throw new Error('clipboard unavailable');
+        await window.navigator.clipboard.writeText(selected.map(function (item) { return item.code; }).join('\n\n'));
+      }
+      catch { if (epoch === sessionEpoch) { codeStatus('A cópia automática não foi confirmada. Tente copiar novamente ou selecione o texto e copie manualmente; o grupo não avançou.','error'); const input = document.getElementById('download-code-secret'); input.focus(); input.select?.(); } return; }
+      if (epoch !== sessionEpoch) return;
+      selected.forEach(function (item) { copiedCodeIds.add(item.entry.id); });
+      codeStatus(selected.length + (selected.length === 1 ? ' token copiado.' : ' tokens copiados.') + (selected.length < requested ? ' Este é o grupo restante disponível.' : '') + (copiedCodeIds.size >= 500 ? ' Inicie uma nova rodada de cópia para continuar.' : ''),'success');
+    } catch (error) {
+      if (epoch === sessionEpoch) codeStatus(error.message || 'Não foi possível conferir os tokens. Tente novamente.','error');
+    } finally {
+      if (epoch === sessionEpoch) { try { await refreshCodePool(epoch); } catch { /* A seleção já foi conferida; mantenha o resultado da cópia. */ } }
+      if (epoch === sessionEpoch) { codeBusy = false; codeOperation = ''; renderCodes(); }
     }
+  }
+  async function reloadCodes() {
+    if (codeBusy || !codesAuthenticated) return;
+    const epoch = sessionEpoch; codeBusy = true; codeOperation = 'refresh'; codeControls(); codeStatus('Atualizando tokens…');
+    try { if (await refreshCodePool(epoch)) codeStatus('Lista de tokens atualizada.','success'); }
+    catch (error) { if (epoch === sessionEpoch) codeStatus(error.message || 'Não foi possível atualizar os tokens.','error'); }
+    finally { if (epoch === sessionEpoch) { codeBusy = false; codeOperation = ''; renderCodes(); } }
   }
 
   function setPasswordVisibility(visible) {
@@ -560,6 +644,7 @@
     }
     codesAuthenticated = true;
     mergeCodes(state.downloadCodes);
+    if (state.codePool) { try { acceptPool(state.codePool); } catch (error) { codeStatus(error.message,'error'); } }
     renderCodes();
     if (!releaseDirty) {
       version.value = savedSettings.version;
@@ -600,7 +685,8 @@
     releaseForm.reset();
     savedSettings = {visibility:'public',hasPassword:false,universalEnabled:true,version:'1.1.0',releaseNotes:'',uploadLimitBytes:defaultUploadLimitBytes};
     universal.checked = true;
-    codesAuthenticated = false; codeBusy = false; codeAttempt = null; downloadCodes = [];
+    codesAuthenticated = false; codeBusy = false; codeOperation = ''; codeAttempt = null; downloadCodes = []; codePool = null; copiedCodeIds.clear();
+    copyCount.value = '1'; copyCount.setCustomValidity('');
     hideCode(); codeForm.reset(); codeFields.count.value = '1'; codeFields.label.value = ''; codeFields.max.value = '1'; codeFields.validity.value = '';
     Object.values(codeFields).forEach(function (field) { field.setCustomValidity(''); });
     codeStatus(''); renderCodes();
@@ -642,7 +728,13 @@
     field.addEventListener('input',changed); field.addEventListener('change',changed);
   });
   document.getElementById('download-code-copy').addEventListener('click',copyCode);
-  document.getElementById('download-code-hide').addEventListener('click',function () { hideCode(); codeStatus('Tokens ocultados. Os acessos criados continuam válidos.'); codeControls(); });
+  document.getElementById('download-code-refresh').addEventListener('click',reloadCodes);
+  document.getElementById('download-code-restart').addEventListener('click',function () {
+    if (codeBusy || !codesAuthenticated) return;
+    copiedCodeIds.clear(); hideCode(); codeStatus('Nova rodada iniciada. Tokens disponíveis poderão ser copiados novamente.'); renderCodes();
+  });
+  copyCount.addEventListener('input',function () { copyCount.setCustomValidity(''); });
+  document.getElementById('download-code-hide').addEventListener('click',function () { hideCode(); codeStatus('Seleção ocultada. Os tokens continuam disponíveis nas listas.'); codeControls(); });
   updateVisibility();
   renderAccessPreview();
   updatePlatformButtons();

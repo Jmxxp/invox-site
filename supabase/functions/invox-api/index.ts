@@ -16,6 +16,8 @@ const EXTENSIONS = { windows: ['exe', 'msi', 'zip'], macos: ['dmg', 'pkg', 'zip'
 const VERSION = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*)?(?:\+[0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*)?$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DOWNLOAD_TOKEN = /^[a-f0-9]{64}$/;
+const ACCESS_CODE = /^(?:[A-Z0-9]{6}|INVOX-[A-F0-9]{64})$/;
+const SHORT_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const SETTINGS_COLUMNS = 'visibility,download_password_hash,download_universal_enabled,download_access_generation,download_mode_generation,version,release_notes,updated_at';
 const INSTALLER_COLUMNS = 'platform,path,file_name,size,version,updated_at,multipart_upload_id,sha256';
 const ADMIN_COLUMNS = 'email,username,user_id,enabled';
@@ -221,6 +223,7 @@ export function createHandler(dependencies) {
         invox_code_expired: ['code_expired', 'Este código expirou.', 403],
         invox_code_attempt_conflict: ['code_attempt_conflict', 'Esta tentativa pertence a outro download. Inicie uma nova tentativa.', 409],
         invox_code_creation_conflict: ['code_creation_conflict', 'Este pedido já foi usado com outros parâmetros. Gere um novo código.', 409],
+        invox_code_collision: ['code_collision', 'Não foi possível gerar este token. Tente novamente.', 409],
         invox_download_changed: ['download_changed', 'O instalador foi atualizado. Tente novamente.', 409],
         invox_download_mode_changed: ['download_changed', 'O acesso ao site foi atualizado. Tente novamente.', 409],
         invox_download_ticket_expired: ['download_expired', 'Este download expirou. Inicie uma nova tentativa.', 401],
@@ -240,15 +243,67 @@ export function createHandler(dependencies) {
     accessCodeKey ||= cryptography.subtle.importKey('raw', new TextEncoder().encode(accessCodeSecret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
     return Array.from(new Uint8Array(await cryptography.subtle.sign('HMAC', await accessCodeKey, new TextEncoder().encode(context))), value => value.toString(16).padStart(2, '0')).join('');
   }
+  async function shortCode(id, nonce) {
+    const hex = await deriveAccessSecret('invox-short-code:v1:' + id + ':' + nonce);
+    let value = Number.parseInt(hex.slice(0, 8), 16) >>> 2, code = '';
+    for (let index = 0; index < 6; index++) { code = SHORT_CODE_ALPHABET[value & 31] + code; value = Math.floor(value / 32); }
+    return code;
+  }
+  async function recoverCode(metadata, shortOnly = false) {
+    if (!metadata?.entry || !UUID.test(metadata.entry.id) || ![0, 1].includes(metadata.formatVersion)
+      || !Number.isInteger(metadata.nonce) || metadata.nonce < 0 || metadata.nonce > 1024 || !SHA256.test(metadata.hash)
+      || (shortOnly && metadata.formatVersion !== 1)) throw unavailable();
+    const code = metadata.formatVersion === 1 ? await shortCode(metadata.entry.id, metadata.nonce)
+      : 'INVOX-' + (await deriveAccessSecret('invox-code:v1:' + metadata.entry.id)).toUpperCase();
+    if (await sha256(code, cryptography) !== metadata.hash) throw unavailable();
+    return { ...metadata.entry, code };
+  }
+  async function codePoolOutput(pool) {
+    if (!pool || !['valid', 'used', 'inactive', 'legacy'].every(key => Array.isArray(pool[key]) && pool[key].length <= 100)
+      || !pool.totals || !['valid', 'used', 'inactive', 'legacy'].every(key => Number.isSafeInteger(pool.totals[key]) && pool.totals[key] >= 0)
+      || !Number.isFinite(Date.parse(pool.evaluatedAt))) throw unavailable();
+    const [valid, used, inactive] = await Promise.all(['valid', 'used', 'inactive'].map(key => Promise.all(pool[key].map(item => recoverCode(item, true)))));
+    return { valid, used, inactive, legacy: pool.legacy, totals: pool.totals, evaluatedAt: pool.evaluatedAt };
+  }
+  async function downloadCodePool(admin) {
+    return codePoolOutput(await accessRpc('invox_admin_code_pool', { p_admin_id: admin.user_id }));
+  }
+  async function selectCopyDownloadCodes(body, admin) {
+    const count = body.count, excludeIds = body.excludeIds === undefined ? [] : body.excludeIds;
+    if (!Number.isInteger(count) || count < 1 || count > 100 || !Array.isArray(excludeIds) || excludeIds.length > 500
+      || excludeIds.some(value => typeof value !== 'string' || !UUID.test(value))) throw invalidInput();
+    const result = await accessRpc('invox_select_copy_download_codes', { p_admin_id: admin.user_id, p_count: count, p_exclude_ids: excludeIds.map(value => value.toLowerCase()) });
+    if (!Array.isArray(result.metadata) || result.metadata.length > count || !Number.isFinite(Date.parse(result.evaluatedAt))
+      || !Number.isSafeInteger(result.availableCount) || result.availableCount < result.metadata.length
+      || !Number.isSafeInteger(result.totalEligible) || result.totalEligible < result.availableCount
+      || result.metadata.some(item => item.entry?.usedCount !== 0 || item.entry?.status !== 'active')) throw unavailable();
+    const recovered = await Promise.all(result.metadata.map(item => recoverCode(item, true)));
+    return { codes: recovered.map(item => item.code), entries: recovered.map(({ code, ...entry }) => entry), evaluatedAt: result.evaluatedAt, availableCount: result.availableCount, totalEligible: result.totalEligible };
+  }
   async function createDownloadCode(body, admin) {
     const id = uploadId(body.id).toLowerCase(), label = body.label === undefined ? '' : body.label, maxUses = body.maxUses === undefined ? 1 : body.maxUses;
     const hours = body.validForHours == null ? null : body.validForHours;
     if (typeof label !== 'string' || label.trim().length > 80 || /[\x00-\x1f\x7f]/.test(label)
       || !Number.isInteger(maxUses) || maxUses < 1 || maxUses > 1000 || (hours !== null && (!Number.isInteger(hours) || hours < 1 || hours > 8760))) throw invalidInput();
-    const code = 'INVOX-' + (await deriveAccessSecret('invox-code:v1:' + id)).toUpperCase();
-    const result = await accessRpc('invox_create_download_code', { p_admin_id: admin.user_id, p_id: id, p_code_hash: await sha256(code, cryptography), p_label: label.trim(), p_max_uses: maxUses, p_valid_for_hours: hours });
-    if (!result.entry || !Array.isArray(result.downloadCodes)) throw unavailable();
-    return { code, entry: result.entry, downloadCodes: result.downloadCodes };
+    const params = { p_admin_id: admin.user_id, p_id: id, p_label: label.trim(), p_max_uses: maxUses, p_valid_for_hours: hours };
+    const previous = await accessRpc('invox_lookup_code_creation', params);
+    if (previous.found === true) {
+      const recovered = await recoverCode(previous.metadata);
+      const downloadCodes = await accessRpc('invox_download_codes_list', { p_admin_id: admin.user_id, p_limit: 100 });
+      if (!Array.isArray(downloadCodes)) throw unavailable();
+      const { code, ...entry } = recovered; return { code, entry, downloadCodes };
+    }
+    if (previous.found !== false) throw unavailable();
+    for (let nonce = 0; nonce < 32; nonce++) {
+      const code = await shortCode(id, nonce);
+      try {
+        const result = await accessRpc('invox_create_short_code', { ...params, p_code_hash: await sha256(code, cryptography), p_nonce: nonce });
+        const recovered = await recoverCode(result.metadata);
+        if (!Array.isArray(result.downloadCodes)) throw unavailable();
+        const { code: actualCode, ...entry } = recovered; return { code: actualCode, entry, downloadCodes: result.downloadCodes };
+      } catch (error) { if (!SAFE_FAULTS.has(error) || error.code !== 'code_collision') throw error; }
+    }
+    throw unavailable();
   }
   async function createDownloadCodes(body, admin) {
     const id = uploadId(body.id).toLowerCase(), label = body.label === undefined ? '' : body.label, count = body.count;
@@ -256,16 +311,29 @@ export function createHandler(dependencies) {
     if (typeof label !== 'string' || label.trim().length > 80 || /[\x00-\x1f\x7f]/.test(label)
       || !Number.isInteger(count) || count < 1 || count > 100 || !Number.isInteger(maxUses) || maxUses < 1 || maxUses > 1000
       || (hours !== null && (!Number.isInteger(hours) || hours < 1 || hours > 8760))) throw invalidInput();
-    const codes = [], manifest = [];
-    for (let index = 0; index < count; index++) {
+    const params = { p_admin_id: admin.user_id, p_id: id, p_label: label.trim(), p_count: count, p_max_uses: maxUses, p_valid_for_hours: hours };
+    const output = async (metadata, downloadCodes) => {
+      if (!Array.isArray(metadata) || metadata.length !== count || !Array.isArray(downloadCodes)) throw unavailable();
+      const recovered = await Promise.all(metadata.map(item => recoverCode(item)));
+      if (new Set(recovered.map(item => item.id)).size !== count) throw unavailable();
+      return { codes: recovered.map(item => item.code), entries: recovered.map(({ code, ...entry }) => entry), downloadCodes };
+    };
+    const previous = await accessRpc('invox_lookup_code_batch', params);
+    if (previous.found === true) return output(previous.metadata, await accessRpc('invox_download_codes_list', { p_admin_id: admin.user_id, p_limit: 100 }));
+    if (previous.found !== false) throw unavailable();
+    const ids = await Promise.all(Array.from({ length: count }, async (_, index) => {
       const hex = await deriveAccessSecret('invox-code-batch-entry:v1:' + id + ':' + index);
-      const entryId = `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-8${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
-      const code = 'INVOX-' + (await deriveAccessSecret('invox-code:v1:' + entryId)).toUpperCase();
-      codes.push(code); manifest.push({ id: entryId, hash: await sha256(code, cryptography) });
+      return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-8${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
+    }));
+    for (let nonce = 0; nonce < 32; nonce++) {
+      const manifest = await Promise.all(ids.map(async entryId => ({ id: entryId, hash: await sha256(await shortCode(entryId, nonce), cryptography), nonce })));
+      if (new Set(manifest.map(item => item.hash)).size !== count) continue;
+      try {
+        const result = await accessRpc('invox_create_short_codes', { ...params, p_codes: manifest });
+        return output(result.metadata, result.downloadCodes);
+      } catch (error) { if (!SAFE_FAULTS.has(error) || error.code !== 'code_collision') throw error; }
     }
-    const result = await accessRpc('invox_create_download_codes', { p_admin_id: admin.user_id, p_id: id, p_label: label.trim(), p_count: count, p_max_uses: maxUses, p_valid_for_hours: hours, p_codes: manifest });
-    if (!Array.isArray(result.entries) || result.entries.length !== count || result.entries.some((entry, index) => entry.id !== manifest[index].id) || !Array.isArray(result.downloadCodes)) throw unavailable();
-    return { codes, entries: result.entries, downloadCodes: result.downloadCodes };
+    throw unavailable();
   }
   function opaqueToken() { return Array.from(cryptography.getRandomValues(new Uint8Array(32)), byte => byte.toString(16).padStart(2, '0')).join(''); }
   function uploadId(value) { if (typeof value !== 'string' || !UUID.test(value)) throw invalidInput(); return value; }
@@ -343,14 +411,14 @@ export function createHandler(dependencies) {
   }
   async function adminState(admin) {
     await opportunisticCleanup(admin);
-    const [settings, installerRows, feedbackResult, storage, history, announcementRows, downloadCodes] = await Promise.all([
+    const [settings, installerRows, feedbackResult, storage, history, announcementRows, downloadCodes, codePool] = await Promise.all([
       getSettings(), installers(), service.from('invox_feedbacks').select(FEEDBACK_COLUMNS).order('created_at', { ascending: false }).order('id', { ascending: false }).limit(200),
       multipartRpc('invox_storage_status', { p_budget_bytes: storageBudgetBytes }),
       multipartRpc('invox_installer_history_list', { p_admin_id: admin.user_id, p_limit: 100 }), announcements(),
-      accessRpc('invox_download_codes_list', { p_admin_id: admin.user_id, p_limit: 100 })
+      accessRpc('invox_download_codes_list', { p_admin_id: admin.user_id, p_limit: 100 }), downloadCodePool(admin)
     ]);
     if (!Array.isArray(history) || !Array.isArray(downloadCodes)) throw unavailable();
-    return { admin: { username: admin.username, email: admin.email }, settings: settingsOutput(settings, uploadLimitBytes), installers: installerRows.map(installerOutput), feedbacks: resultData(feedbackResult).map(feedbackOutput), storage, history, announcements: announcementRows.map(announcementOutput), downloadCodes };
+    return { admin: { username: admin.username, email: admin.email }, settings: settingsOutput(settings, uploadLimitBytes), installers: installerRows.map(installerOutput), feedbacks: resultData(feedbackResult).map(feedbackOutput), storage, history, announcements: announcementRows.map(announcementOutput), downloadCodes, codePool };
   }
   async function login(request, body) {
     await rateLimit(request, 'admin_login', 900, 10);
@@ -386,7 +454,7 @@ export function createHandler(dependencies) {
   async function downloadWithCode(body) {
     if (typeof body.code !== 'string') throw invalidInput();
     const normalized = body.code.trim().toUpperCase();
-    if (!/^INVOX-[A-F0-9]{64}$/.test(normalized)) throw fault('invalid_code', 'Código de acesso inválido.', 403);
+    if (!ACCESS_CODE.test(normalized)) throw fault('invalid_code', 'Código de acesso inválido.', 403);
     const requestId = uploadId(body.requestId).toLowerCase(), codeHash = await sha256(normalized, cryptography);
     const prepared = await accessRpc('invox_prepare_code_download', { p_code_hash: codeHash, p_request_id: requestId, p_platform: body.platform });
     if (typeof prepared.committed !== 'boolean' || !UUID.test(prepared.codeId) || prepared.requestId !== requestId || !Number.isSafeInteger(prepared.modeGeneration) || prepared.modeGeneration < 1) throw unavailable();
@@ -437,7 +505,7 @@ export function createHandler(dependencies) {
           checkedPassword = true;
           verifiedPassword = await passwordMatches(suppliedPassword, settings.download_password_hash, cryptography);
         }
-        if (!verifiedPassword && /^INVOX-[A-F0-9]{64}$/.test(suppliedPassword.trim().toUpperCase())) {
+        if (!verifiedPassword && ACCESS_CODE.test(suppliedPassword.trim().toUpperCase())) {
           return { ...await downloadWithCode({ ...body, code: suppliedPassword }), accessMethod: 'code' };
         }
         if (!verifiedPassword && !settings.download_universal_enabled) throw fault('invalid_code', 'Código de acesso inválido.', 403);
@@ -688,7 +756,7 @@ export function createHandler(dependencies) {
         case 'logout-download': return json(await logoutDownload(request, body));
         case 'feedback': return json(await feedback(request, body), 201);
       }
-      if (!['admin-state', 'analytics', 'reset-analytics', 'save-access', 'create-download-code', 'create-download-codes', 'revoke-download-code', 'update-feedback', 'create-upload', 'save-release', 'update-installer-version', 'create-multipart-upload', 'multipart-part-upload', 'confirm-multipart-part', 'finish-multipart-upload', 'preview-multipart-upload', 'cleanup-multipart-upload', 'save-announcement', 'set-announcement-active'].includes(body.action)) throw invalidInput();
+      if (!['admin-state', 'analytics', 'reset-analytics', 'save-access', 'create-download-code', 'create-download-codes', 'download-code-pool', 'select-copy-download-codes', 'revoke-download-code', 'update-feedback', 'create-upload', 'save-release', 'update-installer-version', 'create-multipart-upload', 'multipart-part-upload', 'confirm-multipart-part', 'finish-multipart-upload', 'preview-multipart-upload', 'cleanup-multipart-upload', 'save-announcement', 'set-announcement-active'].includes(body.action)) throw invalidInput();
       const admin = await authenticate(request);
       if (!['admin-state', 'analytics'].includes(body.action)) await rateLimit(request, 'admin_write', 60, 60, admin.user_id);
       switch (body.action) {
@@ -698,6 +766,8 @@ export function createHandler(dependencies) {
         case 'save-access': return json(await saveAccess(body));
         case 'create-download-code': return json(await createDownloadCode(body, admin));
         case 'create-download-codes': return json(await createDownloadCodes(body, admin));
+        case 'download-code-pool': return json(await downloadCodePool(admin));
+        case 'select-copy-download-codes': return json(await selectCopyDownloadCodes(body, admin));
         case 'revoke-download-code': return json(await accessRpc('invox_revoke_download_code', { p_admin_id: admin.user_id, p_id: uploadId(body.id) }));
         case 'update-feedback': return json(await updateFeedback(body));
         case 'save-announcement': return json(await saveAnnouncement(request, body, admin), 201);
