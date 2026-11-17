@@ -8,7 +8,7 @@ Na raiz do repositório, execute `node scripts/serve-official.mjs`. Abra http://
 
 ## Arquivos principais
 
-- `index.html`, `styles.css`, `about.css`, `premium.css`: layout e conteúdo.
+- `index.html`, `styles.css`, `about.css`, `premium.css`, `navigation.css`: layout, conteúdo e navegação com ícones e quinas cortadas.
 - `script.js`, `downloads.css`, `integration.css`: plataformas, versões individuais dos instaladores, downloads e diálogo de senha.
 - `feedback.js`, `feedback.css`: envio real de feedback.
 - `shared/invox-client.js`: conexão pública, autenticação e chamadas ao servidor.
