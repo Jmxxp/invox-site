@@ -420,8 +420,9 @@
   function offerStorageReplacement(platform,file) {
     const current = savedInstallers[platform];
     const historyId = currentHistoryIds[platform];
-    if (!current || !current.path || !historyId || !file || uploaded[platform]?.file === file || !savedStorage || !Number.isFinite(savedStorage.capacityBytes) || !Number.isFinite(savedStorage.availableBytes)) return;
-    if (file.size > savedStorage.capacityBytes || file.size > savedStorage.availableBytes + current.size) return;
+    const hasStorageReference = current && (typeof current.path === 'string' && current.path.length > 0 || current.kind === 'multipart' && typeof current.uploadId === 'string' && /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i.test(current.uploadId));
+    if (!hasStorageReference || !historyId || !file || uploaded[platform]?.file === file || !savedStorage || !Number.isFinite(savedStorage.capacityBytes) || !Number.isFinite(savedStorage.availableBytes)) return;
+    if (file.size > savedStorage.capacityBytes) return;
     storageReplacement = {platform:platform,file:file,version:platformVersions[platform].value.trim() || version.value.trim(),installer:Object.assign({},current),historyId:historyId,requested:false};
     document.getElementById('storage-replacement-current').textContent = platforms[platform].label + ' · ' + current.fileName + ' · ' + formatBytes(current.size) + ' · v' + current.version;
     document.getElementById('storage-replacement-next').textContent = platforms[platform].label + ' · ' + file.name + ' · ' + formatBytes(file.size) + ' · v' + storageReplacement.version;
