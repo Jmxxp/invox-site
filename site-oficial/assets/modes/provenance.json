@@ -57,23 +57,26 @@
     "engineArchiveSha512": "83decd58fdf67b9d657958a1ae6bf1929c20785315a81effe245874cdc57acb709bf868e00778a96984338c1b29dafdb453c6847747694621c6ecf5da2259993",
     "engineChecksumVerifiedAgainstOfficialRelease": true,
     "renderer": "gl_compatibility / OpenGL 3.3",
-    "method": "Godot Movie Writer PNG frames from the original presentation-only stage, encoded as VP9 WebM",
+    "method": "Godot Movie Writer PNG frames from the original presentation-only stages, with the Parkour marker visibility override declared below, encoded as VP9 WebM",
     "width": 640,
     "height": 360,
     "fps": 20,
-    "originalModels": true,
+    "originalModels": false,
     "originalCamera": true,
     "originalLighting": true,
     "originalMotion": true,
-    "sourceFilesModified": false,
+    "sourceFilesModified": true,
     "autoloadsEnabled": false,
     "microphoneEnabled": false,
     "audioIncluded": false,
     "cardCaptionsBurnedIn": false,
     "encoder": "FFmpeg 9.0.2 / libvpx-vp9",
     "encoderCrf": 24,
-    "posterMethod": "Unmodified native first frame; matches video startup",
-    "loopNote": "No interpolation, crossfade, color changes or animation retiming. Native non-periodic secondary motions are retained."
+    "posterMethod": "Native first frame matching video startup; Parkour includes the declared native marker override. No raster editing.",
+    "loopNote": "No interpolation, crossfade, color grading or animation retiming during encoding. Native motions are retained; only the declared Parkour marker appearance is changed.",
+    "originalModelsNote": "Original models are retained for all scenes; Parkour alone has a larger native sphere, a lighter material and a native 3D outline. The other four modes are unchanged.",
+    "originalRepositoryModified": false,
+    "sourceFilesModifiedScope": "Only scripts/ui/room_mode_stage.gd in the isolated render fixture. The original repository checkout and source hashes above remain unchanged."
   },
   "modes": [
     {
@@ -295,15 +298,52 @@
       "assets": [
         {
           "file": "mode-parkour.webm",
-          "bytes": 35488,
-          "sha256": "55df603440b18d3716b2d875b3635022e98820c14239e4059baba424d4a05b4b"
+          "bytes": 62790,
+          "sha256": "e0587f10a75b36bae6efda9b7910067117a7568dbfd3bf18bcee5e30a9693bcc"
         },
         {
           "file": "mode-parkour.png",
-          "bytes": 5211,
-          "sha256": "1ab8dc4cd1237874727fb3b6068fa24a7501ee709d8fcd1b95a5a931ae2504d5"
+          "bytes": 5450,
+          "sha256": "21731440cb75d2d30bc5df27701dc7b4f039663f2c9b84285d2624dc4e1eebf8"
         }
-      ]
+      ],
+      "presentationOverride": {
+        "purpose": "Make the native jumping marker readable in small website cards",
+        "scope": "Parkour marker only; isolated fixture, not the original game project",
+        "original": {
+          "radius": 0.1,
+          "height": 0.2,
+          "color": "#d9a8ff"
+        },
+        "rendered": {
+          "radius": 0.18,
+          "height": 0.36,
+          "color": "#f7edff",
+          "shading": "unshaded",
+          "outline": {
+            "method": "native sphere inverted hull",
+            "scale": 1.1,
+            "color": "#6a278d",
+            "cullMode": "front",
+            "castsShadow": false
+          }
+        },
+        "preserved": [
+          "camera",
+          "lighting",
+          "platform geometry",
+          "trajectory",
+          "timing",
+          "visibility phase",
+          "10 second period"
+        ],
+        "fixtureFile": {
+          "path": "scripts/ui/room_mode_stage.gd",
+          "sha256": "48958300ccd0d3027127862967e5238867825b38f55b567700af0b31e1f1460d"
+        },
+        "originalSourceSha256": "a3e75eceebe359854eff1d8bd6a69fa155f7f7b7a4e66cc35a226914ffd40d01",
+        "reproduction": "parkour-marker-override.md"
+      }
     }
   ]
 }

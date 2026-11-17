@@ -135,24 +135,23 @@
   uniform vec3 u_eye;uniform vec3 u_key;uniform vec3 u_rim;uniform vec3 u_cursor;uniform float u_cursorEnergy;uniform float u_time;
   out vec4 outColor;
   vec3 toLinear(vec3 c){return pow(c,vec3(2.2));}
-  vec3 light(vec3 n,vec3 view,vec3 direction,vec3 radiance,vec3 albedo,float rough){
+  vec3 light(vec3 n,vec3 view,vec3 direction,vec3 radiance,vec3 albedo,float rough,float diffuse){
     vec3 h=normalize(view+direction);float nv=max(dot(n,view),0.001);float nl=max(dot(n,direction),0.0);float nh=max(dot(n,h),0.0);float hv=max(dot(h,view),0.0);
     float a=rough*rough;float aa=a*a;float denom=nh*nh*(aa-1.0)+1.0;float distribution=aa/(3.14159265*denom*denom+0.0001);
     float k=(rough+1.0)*(rough+1.0)/8.0;float geometry=nv/(nv*(1.0-k)+k)*nl/(nl*(1.0-k)+k);
     vec3 f0=mix(vec3(0.04*0.64),albedo,0.27);vec3 fresnel=f0+(1.0-f0)*pow(1.0-hv,5.0);
-    vec3 specular=distribution*geometry*fresnel/(4.0*nv*max(nl,0.001)+0.0001);return ((1.0-fresnel)*0.73*albedo/3.14159265+specular)*radiance*nl;
+    vec3 specular=distribution*geometry*fresnel/(4.0*nv*max(nl,0.001)+0.0001);return ((1.0-fresnel)*0.73*albedo/3.14159265*diffuse+specular)*radiance*nl;
   }
-  vec3 omni(vec3 n,vec3 view,vec3 position,vec3 color,float energy,float range,vec3 albedo,float rough){vec3 d=position-v_world;float attenuation=pow(max(1.0-length(d)/range,0.0),2.0);return light(n,view,normalize(d),color*energy*attenuation,albedo,rough);}
+  vec3 omni(vec3 n,vec3 view,vec3 position,vec3 color,float energy,float range,vec3 albedo,float rough){vec3 d=position-v_world;float attenuation=pow(max(1.0-length(d)/range,0.0),2.0);return light(n,view,d/max(length(d),0.0001),color*energy*attenuation,albedo,rough,1.0);}
   void main(){
-    vec3 n=normalize(v_normal),view=normalize(u_eye-v_world),v=abs(v_local);float second=max(min(v.x,v.y),min(max(v.x,v.y),v.z));float edge=smoothstep(0.402,0.474,second);float rim=pow(1.0-clamp(dot(n,view),0.0,1.0),3.5);
-    float phase=v_custom.x*6.283185;float hover=v_custom.z;float reflection=v_custom.y;float pulse=0.88+0.12*sin(u_time*0.48+phase);float rough=mix(0.38,0.27,hover);
-    vec3 albedo=toLinear(v_color)*vec3(1.08,0.78,1.0)*(0.88+edge*0.12);vec3 color=albedo*vec3(0.17,0.07,0.22)*0.62;
-    color+=light(n,view,normalize(vec3(-0.283,0.743,0.607)),toLinear(vec3(0.93,0.81,1.0))*2.5,albedo,rough);
-    color+=omni(n,view,u_key,toLinear(vec3(0.78,0.26,1.0)),3.2,13.0,albedo,rough);
-    color+=omni(n,view,u_rim,toLinear(vec3(0.74,0.18,1.0)),2.5,14.0,albedo,rough);
-    color+=omni(n,view,u_cursor,toLinear(vec3(0.88,0.25,1.0)),u_cursorEnergy,2.2,albedo,rough);
-    vec3 violet=vec3(0.57,0.09,0.92),magenta=vec3(0.78,0.16,1.0);vec3 tint=mix(violet,magenta,0.5+0.5*sin(phase+u_time*0.08));
-    color+=tint*(edge*0.13+rim*0.06)*pulse;color+=magenta*hover*(0.07+rim*0.09);color+=mix(vec3(0.72,0.16,1.0),vec3(0.90,0.25,1.0),rim)*reflection*(0.12+edge*0.20+rim*0.10);
+    vec3 n=normalize(v_normal),view=normalize(u_eye-v_world),v=abs(v_local);float second=max(min(v.x,v.y),min(max(v.x,v.y),v.z));float edge=smoothstep(0.402,0.474,second);
+    float rough=mix(0.40,0.38,v_custom.z);
+    vec3 albedo=toLinear(v_color)*vec3(1.02,0.98,1.02)*(0.93+edge*0.07);vec3 color=albedo*vec3(0.28,0.26,0.32)*0.90;
+    color+=light(n,view,normalize(vec3(-0.283,0.743,0.607)),toLinear(vec3(1.0,0.97,1.0))*4.0,albedo,rough,1.0);
+    color+=omni(n,view,u_key,toLinear(vec3(0.82,0.65,1.0)),0.65,13.0,albedo,rough);
+    color+=omni(n,view,u_rim,toLinear(vec3(0.78,0.61,1.0)),0.50,14.0,albedo,rough);
+    vec3 cursorDelta=u_cursor-v_world;float cursorDistance=length(cursorDelta);float cursorFalloff=pow(max(1.0-cursorDistance/3.2,0.0),2.0);
+    color+=light(n,view,cursorDelta/max(cursorDistance,0.0001),vec3(u_cursorEnergy*cursorFalloff),vec3(0.04),0.42,0.0);
     color=(color*(2.51*color+0.03))/(color*(2.43*color+0.59)+0.14);outColor=vec4(pow(clamp(color,0.0,1.0),vec3(1.0/2.2)),1.0);
   }`;
   let program, instanceBuffer, vertexCount;
@@ -234,13 +233,9 @@
     for (let column = 0; column < 3; column++) for (let row = 0; row < 3; row++) result[column * 3 + row] = a[row] * b[column * 3] + a[3 + row] * b[column * 3 + 1] + a[6 + row] * b[column * 3 + 2];
     return result;
   }
-  function camera(state) {
-    let framing = 0;
-    if (state.phase === "build") framing = 1 - smooth((state.time - 2.15) / (BUILD - 2.15));
-    else if (state.phase === "unbuild") framing = smooth(state.time / 1.15);
-    else if (state.phase === "stage") framing = 1;
-    const distance = 11.6 * Math.max(1, 0.98 * height / width);
-    let eye = rotateY(mul([6.1, 5.5, 11.8], distance / 14.2 * (1 + framing * 0.60)), Math.sin(elapsed * 0.19) * 0.035);
+  function camera() {
+    const distance = 15.8 * Math.max(1, 0.98 * height / width);
+    let eye = rotateY(mul([6.1, 5.5, 11.8], distance / 14.2), Math.sin(elapsed * 0.19) * 0.035);
     eye[1] += Math.sin(elapsed * 0.26) * 0.10; eye = add(eye, [parallax[0] * 0.20, -parallax[1] * 0.12, 0]);
     const forward = normal(sub([0, -0.70, 0], eye)), right = normal(cross(forward, [0, 1, 0])), up = cross(right, forward);
     const view = [right[0], up[0], -forward[0], 0, right[1], up[1], -forward[1], 0, right[2], up[2], -forward[2], 0, -dot(right, eye), -dot(up, eye), dot(forward, eye), 1];
@@ -295,7 +290,7 @@
   }
   function render(delta = 0) {
     if (contextLost) return;
-    const state = cycleState(), view = camera(state);
+    const state = cycleState(), view = camera();
     for (let index = 0; index < state.visible; index++) {
       const pose = react(index, blockPose(index, state), view, delta), cursor = index * 18;
       instances.set(pose.position, cursor); instances.set(pose.basis, cursor + 3); instances.set(pose.color, cursor + 12); instances.set([random(index), pose.light, pose.response], cursor + 15);
@@ -304,7 +299,8 @@
     gl.uniformMatrix4fv(uniforms.viewProjection, false, view.matrix); gl.uniform3fv(uniforms.eye, view.eye);
     gl.uniform3fv(uniforms.key, [-3.4 + Math.sin(elapsed * 0.16) * 0.45, 4.6, 3]); gl.uniform3fv(uniforms.rim, [3.5, 2.2 + Math.sin(elapsed * 0.18) * 0.25, -3.2]);
     const ray = normal(add(view.forward, add(mul(view.right, (cursorUV[0] * 2 - 1) * width / height / view.f), mul(view.up, (1 - cursorUV[1] * 2) / view.f))));
-    gl.uniform3fv(uniforms.cursor, add(view.eye, mul(ray, 11))); gl.uniform1f(uniforms.cursorEnergy, cursorEnergy); gl.uniform1f(uniforms.time, elapsed);
+    const cursorDepth = Math.max(0.5, dot(sub([0, -0.70, 0], view.eye), view.forward) - 1.3);
+    gl.uniform3fv(uniforms.cursor, add(view.eye, mul(ray, cursorDepth))); gl.uniform1f(uniforms.cursorEnergy, cursorEnergy); gl.uniform1f(uniforms.time, elapsed);
     gl.bindBuffer(gl.ARRAY_BUFFER, instanceBuffer); gl.bufferSubData(gl.ARRAY_BUFFER, 0, instances.subarray(0, state.visible * 18));
     gl.drawArraysInstanced(gl.TRIANGLES, 0, vertexCount, state.visible); updateLabels(state);
   }
@@ -324,7 +320,7 @@
     lastTime = timestamp; elapsed = (elapsed + delta) % (CYCLE * 300);
     refreshPointer();
     const target = cursorInside ? [clamp(cursorUV[0] - 0.5, -0.5, 0.5) * 2, clamp(cursorUV[1] - 0.5, -0.5, 0.5) * 2] : [0, 0];
-    const response = 1 - Math.exp(-delta * 1.8); parallax = parallax.map((value, i) => lerp(value, target[i], response)); cursorEnergy = lerp(cursorEnergy, cursorInside ? 1.45 : 0, 1 - Math.exp(-delta * 7));
+    const response = 1 - Math.exp(-delta * 1.8); parallax = parallax.map((value, i) => lerp(value, target[i], response)); cursorEnergy = lerp(cursorEnergy, cursorInside ? 0.65 : 0, 1 - Math.exp(-delta * 7));
     render(delta); if (running()) frame = requestAnimationFrame(tick);
   }
   function resize() {
